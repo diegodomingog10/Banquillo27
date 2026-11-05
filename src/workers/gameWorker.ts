@@ -7,7 +7,7 @@ import { matchKits } from '../data/kits';
 import { generateWorld } from '../data/generator/generateWorld';
 import type { WorldDatabase } from '../data/schema';
 import { continueGame, markRead, newGame, playUserMatch, prepareUserMatch, resolveMessage, type GameState, type Manager } from '../engine/game';
-import { LiveMatch } from '../engine/liveMatch';
+import { LiveMatch, NARRATOR_NAMES } from '../engine/liveMatch';
 import type { MatchCommand } from '../engine/matchEngine';
 import { answerPress, skipPress } from '../engine/postMatch';
 import { competitionView, competitionsList, dashboardView, inboxView, matchView, preMatchView, squadView } from '../engine/views';
@@ -70,6 +70,7 @@ export const api = {
       away: { id: away.id, name: away.name, primary: away.colors.primary, secondary: away.colors.secondary },
       stadium: home.stadium.name,
       kits: matchKits(home, away),
+      narrator: NARRATOR_NAMES[live.match.narrator],
       tick: live.match.tick({ phases: 1 }),
     };
   },

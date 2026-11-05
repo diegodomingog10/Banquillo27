@@ -3,6 +3,7 @@
  * de cada frase depende del índice del evento, no de Math.random().
  */
 import type { MatchEvent } from '../data/schema';
+import { phrases, type Moment, type NarratorId } from './narrators';
 import { hashString } from './rng';
 
 export interface CommentLine {
@@ -28,59 +29,86 @@ export function minuteLabel(e: Pick<MatchEvent, 'minute' | 'stoppage'>): string 
   return `${e.minute}${e.stoppage ? `+${e.stoppage}` : ''}'`;
 }
 
-export function commentFor(e: MatchEvent, index: number, n: Names): CommentLine | null {
+/** Contexto que acompaña a la narración: quién narra y cómo va el marcador. */
+export interface NarrationContext {
+  narrator: NarratorId | 'neutral';
+  homeId: string;
+  awayId: string;
+  /** Goles [local, visitante] antes del próximo evento; se actualiza al narrar. */
+  score: [number, number];
+}
+
+const tidy = (s: string) => s.replace(/\s+([,.!?…])/g, '$1').replace(/,\s*([!.])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+
+export function commentFor(e: MatchEvent, index: number, n: Names, ctx?: NarrationContext): CommentLine | null {
   const seed = hashString(`${index}:${e.type}:${e.playerId ?? ''}`);
-  const v = { p: n.player(e.playerId), o: n.player(e.otherPlayerId), t: n.team(e.teamId) };
-  const line = (kind: CommentLine['kind'], text: string): CommentLine => ({ minute: minuteLabel(e), text: fill(text, v), kind, teamId: e.teamId, index });
+  const narrator = ctx?.narrator ?? 'neutral';
   const how = SHOT_KIND[(e.detail ?? '').split(':').pop() ?? ''] ?? '';
+  const isHome = ctx ? e.teamId === ctx.homeId : true;
+  const rival = ctx ? n.team(isHome ? ctx.awayId : ctx.homeId) : '';
+  // Marcador tras la jugada
+  if (ctx && e.type === 'goal' && e.detail !== 'shootout') ctx.score[isHome ? 0 : 1] += 1;
+  const score = ctx ? `${n.team(ctx.homeId)} ${ctx.score[0]}, ${n.team(ctx.awayId)} ${ctx.score[1]}` : '';
+  const v: Record<string, string> = {
+    p: n.player(e.playerId), o: n.player(e.otherPlayerId), t: n.team(e.teamId), r: rival, how, s: score,
+    n: e.detail ?? 'unos', f: (e.detail ?? '').split(':')[1] ?? '',
+  };
+  const say = (kind: CommentLine['kind'], m: Moment, extra = ''): CommentLine => ({
+    minute: minuteLabel(e), text: tidy(fill(pick(phrases(narrator, m), seed), v) + extra), kind, teamId: e.teamId, index,
+  });
   switch (e.type) {
-    case 'kickOff': return line('whistle', '¡Arranca el partido!');
-    case 'halfTime': return line('whistle', e.detail === '3' ? 'Descanso de la prórroga.' : 'Final de la primera parte.');
-    case 'fullTime': return line('whistle', 'Final del partido.');
-    case 'addedTime': return line('info', `Se añaden ${e.detail ?? 'unos'} minutos.`);
-    case 'extraTimeStart': return line('whistle', 'Empate: vamos a la prórroga.');
-    case 'penaltyShootout': return line('whistle', 'Todo se decide en la tanda de penaltis.');
-    case 'goal':
-      if (e.detail === 'shootout') return line('goal', pick(['{p} marca su penalti.', 'Gol de {p} en la tanda.'], seed));
-      return line('goal', pick([
-        `¡GOOOL de {p}! Remata ${how} y bate al portero.`,
-        `¡Gol de {t}! {p} no perdona ${how}.`,
-        `¡{p} la mete ${how}! Golazo para {t}.`,
-      ], seed) + (e.otherPlayerId ? ` Asistencia de {o}.` : ''));
-    case 'save':
-      return line('chance', pick([`¡Paradón de {p}! Saca el disparo de {o} ${how}.`, `{o} lo intenta ${how}, pero {p} responde bien.`, `Tiro de {o} ${how}; atrapa {p}.`], seed));
-    case 'woodwork': return line('chance', pick(['¡Al palo! {p} acaricia el gol.', '¡El larguero salva al rival! Disparo de {p}.'], seed));
+    case 'kickOff': return say('whistle', 'kickOff');
+    case 'halfTime': return e.detail === '3' ? { minute: minuteLabel(e), text: 'Descanso de la prórroga.', kind: 'whistle', teamId: null, index } : say('whistle', 'halfTime');
+    case 'fullTime': return say('whistle', 'fullTime');
+    case 'addedTime': return say('info', 'addedTime');
+    case 'extraTimeStart': return say('whistle', 'extraTime');
+    case 'penaltyShootout': return say('whistle', 'shootout');
+    case 'goal': {
+      if (e.detail === 'shootout') return say('goal', 'goalShootout');
+      const assist = e.otherPlayerId ? ` Asistencia de ${v.o}.` : '';
+      if (!ctx) return say('goal', 'goal', assist);
+      const mine = ctx.score[isHome ? 0 : 1];
+      const theirs = ctx.score[isHome ? 1 : 0];
+      const m: Moment = e.minute >= 85 && mine - theirs <= 1 && mine >= theirs ? 'goalLate'
+        : mine === theirs ? 'goalEqualizer'
+        : mine - theirs >= 3 ? 'goalRout'
+        : mine - theirs === 1 ? 'goalAhead'
+        : 'goal';
+      // No siempre la frase de contexto: alterna con las de gol normal
+      return say('goal', m === 'goalAhead' && seed % 2 === 0 ? 'goal' : m, assist);
+    }
+    case 'save': return say('chance', 'save');
+    case 'woodwork': return say('chance', 'woodwork');
     case 'shot': {
-      const blocked = (e.detail ?? '').startsWith('blocked');
-      if (blocked) return line('chance', pick(['Disparo de {p}, bloqueado por la defensa.', '{p} chuta, pero el balón choca en un defensor.'], seed));
-      if ((e.xg ?? 0) >= 0.15) return line('chance', pick([`¡Qué ocasión! {p} la manda fuera ${how}.`, `¡Se le escapa a {p}! Clarísima ${how}.`], seed));
+      if ((e.detail ?? '').startsWith('blocked')) return say('chance', 'blocked');
+      if ((e.xg ?? 0) >= 0.15) return say('chance', 'bigMiss');
       return null;
     }
-    case 'penalty': return line('chance', '¡Penalti a favor de {t}! Falta sobre {p}.');
-    case 'penaltyMissed': return e.detail === 'shootout' ? line('chance', '¡{p} falla en la tanda!') : line('chance', '¡{p} falla el penalti!');
-    case 'yellow': return line('card', pick(['Amarilla para {p}.', 'El árbitro amonesta a {p}.'], seed));
-    case 'secondYellow': return line('card', '¡Segunda amarilla para {p}! {t} se queda con uno menos.');
-    case 'red': return line('card', '¡Roja directa a {p}! {t} se queda con diez.');
-    case 'substitution': return line('sub', e.detail === 'injury' ? 'Cambio obligado en {t}: entra {p} por el lesionado {o}.' : 'Cambio en {t}: entra {p}, se retira {o}.');
-    case 'injury': return line('injury', 'Se duele {p}… parece que no puede seguir.');
-    case 'offside': return seed % 3 === 0 ? line('info', 'Fuera de juego de {p}.') : null;
-    case 'corner': return seed % 2 === 0 ? line('info', 'Córner para {t}.') : null;
-    case 'freeKick': return line('info', 'Falta peligrosa para {t}; se prepara {p}.');
-    case 'foul': return seed % 5 === 0 ? line('info', 'Falta de {p} sobre {o}.') : null;
+    case 'penalty': return say('chance', 'penalty');
+    case 'penaltyMissed': return say('chance', 'penaltyMissed');
+    case 'yellow': return say('card', 'yellow');
+    case 'secondYellow': return say('card', 'secondYellow');
+    case 'red': return say('card', 'red');
+    case 'substitution': return say('sub', e.detail === 'injury' ? 'subInjury' : 'sub');
+    case 'injury': return say('injury', 'injury');
+    case 'offside': return seed % 3 === 0 ? say('info', 'offside') : null;
+    case 'corner': return seed % 2 === 0 ? say('info', 'corner') : null;
+    case 'freeKick': return say('info', 'freeKick');
+    case 'foul': return seed % 5 === 0 ? say('info', 'foul') : null;
     case 'tacticChange': {
       const d = e.detail ?? '';
-      if (d.startsWith('mentality')) return line('tactic', `{t} cambia su planteamiento.`);
-      if (d.startsWith('formation')) return line('tactic', `{t} cambia de sistema: ${d.split(':')[1]}.`);
+      if (d.startsWith('mentality')) return say('tactic', 'mentality');
+      if (d.startsWith('formation')) return say('tactic', 'formation');
       return null;
     }
     default: return null;
   }
 }
 
-export function commentary(events: readonly MatchEvent[], n: Names, offset = 0): CommentLine[] {
+export function commentary(events: readonly MatchEvent[], n: Names, offset = 0, ctx?: NarrationContext): CommentLine[] {
   const out: CommentLine[] = [];
   events.forEach((e, i) => {
-    const c = commentFor(e, offset + i, n);
+    const c = commentFor(e, offset + i, n, ctx);
     if (c) out.push(c);
   });
   return out;

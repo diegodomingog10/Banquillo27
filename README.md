@@ -251,6 +251,12 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 - **Equipaciones** (`src/data/kits.ts`): cada club tiene primera, segunda y de portero (camiseta, color secundario, diseño —liso, rayas, finas, aros, mitades, banda, mangas—, pantalón y medias). En cada partido el local juega con la primera y el visitante cambia a la segunda si las camisetas se confunden, o a una alternativa blanca o negra si también choca. Los porteros se ajustan para no confundirse con nadie.
 - Se ven en el campo 2D (discos con el diseño de la camiseta), el marcador, la previa, el próximo partido del inicio y la ficha del club. Las bases de datos importadas pueden traer sus equipaciones (ver `DATA_GUIDE.md`); las antiguas se derivan de los colores del club.
 
+## Narradores
+
+- Cada partido en directo lo narra uno de tres narradores, elegido al azar (y reproducible según la semilla del partido): **Andrés Montes**, **Juan Carlos Rivero** o **Miguel Ángel Román**. El nombre aparece en la tarjeta de comentarios.
+- Frases de homenaje a su estilo, escritas para el juego (`src/engine/narrators.ts`): Montes, jazz y espectáculo; Rivero, emoción y gritos largos; Román, análisis táctico sobrio.
+- La narración tiene en cuenta el marcador: goles del empate, de ventaja, de goleada y en los últimos minutos tienen frases propias, y los descansos y el final dicen el resultado. Es solo texto, sin imitar su voz.
+
 ## Decisiones de diseño (ambigüedades resueltas)
 
 Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manager:

@@ -4,7 +4,9 @@
  */
 import type { MatchEvent } from '../data/schema';
 import { GROUP_OF_POSITION } from '../data/positions';
-import { commentary, type CommentLine } from './commentary';
+import { commentary, type CommentLine, type NarrationContext } from './commentary';
+import { narratorFor, NARRATOR_NAMES, type NarratorId } from './narrators';
+import { hashString } from './rng';
 import { MatchSimulation, type LiveSnapshot, type LiveTeam, type MatchCommand, type MatchInput, type MatchResult, type ReplayAction, type ShoutOutcome } from './matchEngine';
 import { SHOUT_IDS, TWEAK_IDS, type ShoutId, type TweakId } from './tactics';
 
@@ -104,10 +106,15 @@ export class LiveMatch {
   private sh = 0;
   private names = new Map<string, string>();
   private teamNames = new Map<string, string>();
+  /** Quién narra este partido (al azar según la semilla) y el marcador que lleva. */
+  readonly narrator: NarratorId;
+  private narration: NarrationContext;
 
   constructor(readonly input: MatchInput, readonly userSide: 0 | 1, assistant = false) {
     this.sim = new MatchSimulation({ ...input, detail: 'full' });
     this.sim.setAi(userSide, assistant);
+    this.narrator = narratorFor(hashString(`narrador:${input.seed}`));
+    this.narration = { narrator: this.narrator, homeId: input.home.clubId, awayId: input.away.clubId, score: [0, 0] };
     for (const t of [input.home, input.away]) {
       this.teamNames.set(t.clubId, t.name);
       for (const p of t.squad) this.names.set(p.id, p.commonName ?? p.lastName);
@@ -162,7 +169,7 @@ export class LiveMatch {
     return {
       snapshot,
       events,
-      comments: commentary(events, n, startEv),
+      comments: commentary(events, n, startEv, this.narration),
       replay,
       shouts,
       advice: snapshot.finished ? [] : staffAdvice(snapshot, this.userSide),
@@ -177,3 +184,4 @@ export class LiveMatch {
 }
 
 export type { LiveSnapshot, LiveTeam };
+export { NARRATOR_NAMES };

@@ -188,7 +188,7 @@ export function LiveMatchScreen() {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-4">
           <Pitch teams={snap.teams} kits={kits} action={action} stepMs={anim.stepMs} flash={flash} cards={cards} />
-          <Card title="Comentarios" icon="news" padded>
+          <Card title="Comentarios" icon="news" padded actions={<span className="flex items-center gap-1.5 text-[13px] text-muted"><Icon name="mic" size={14} />Narra <span className="font-semibold text-soft">{info.narrator}</span></span>}>
             <ul className="flex max-h-64 flex-col gap-1.5 overflow-auto text-[13px]" aria-live="polite">
               {comments.map((c) => (
                 <li key={`${c.index}${c.text}`} className="flex gap-3">
