@@ -1,0 +1,2 @@
+id,name,short_name,nation,format,level,reputation,strength,team_ids,start_date,end_date,promoted,relegated
+c_lus_1,Liga Lusandria,LUS 1,n_lus,league,1,7000,74,cl_puerto;cl_sierra;cl_valle,2026-08-15,2027-05-30,0,0

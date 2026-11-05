@@ -1,0 +1,39 @@
+{
+  "nations": [
+    { "id": "n_lus", "name": "Lusandria", "code": "LUS", "continent": "Aurelia", "reputation": 7200, "leagueStrength": 74 }
+  ],
+  "competitions": [
+    { "id": "c_lus_1", "name": "Liga Lusandria", "nationId": "n_lus", "format": "league", "level": 1, "teamIds": ["cl_puerto", "cl_sierra", "cl_valle"] }
+  ],
+  "clubs": [
+    { "id": "cl_puerto", "name": "Atlético Puertomar", "nationId": "n_lus", "city": "Puertomar", "reputation": 6800 },
+    { "id": "cl_sierra", "name": "Club Sierra Alta", "nationId": "n_lus", "city": "Sierra Alta", "reputation": 5200 },
+    { "id": "cl_valle", "name": "Deportivo Valleoscuro", "nationId": "n_lus", "city": "Valleoscuro", "reputation": 3900 }
+  ],
+  "players": [
+    {
+      "id": "lus_0001", "firstName": "Ilario", "lastName": "Montebrás", "birthDate": "1996-03-14", "nationalities": ["n_lus"],
+      "heightCm": 191, "weightKg": 86, "preferredFoot": "right",
+      "positions": [{ "position": "GK", "rating": 20 }], "clubId": "cl_puerto",
+      "contract": { "wage": 38000, "expires": "2029-06-30" },
+      "attributes": { "reflexes": 16, "handling": 15, "oneOnOnes": 14, "aerialReach": 15, "communication": 13, "kicking": 12, "playWithFeet": 13, "positioning": 15, "concentration": 14, "decisions": 13, "composure": 14, "agility": 15 }
+    },
+    {
+      "id": "lus_0002", "firstName": "Tadeo", "lastName": "Ferrulla", "birthDate": "1999-11-02", "nationalities": ["n_lus"],
+      "heightCm": 186, "weightKg": 80, "preferredFoot": "left",
+      "positions": [{ "position": "CB", "rating": 20 }, { "position": "LB", "rating": 12 }], "clubId": "cl_puerto",
+      "attributes": { "marking": 15, "tackling": 15, "heading": 14, "positioning": 15, "jumping": 14, "strength": 14, "passing": 13, "pace": 12 }
+    },
+    {
+      "id": "lus_0003", "firstName": "Rumen", "lastName": "Castelvo", "birthDate": "2002-07-21", "nationalities": ["n_lus"],
+      "positions": [{ "position": "ST", "rating": 20 }], "clubId": "cl_puerto", "ca": 142, "pa": 168,
+      "attributes": { "finishing": 16, "offTheBall": 15, "composure": 14, "firstTouch": 14, "acceleration": 16, "pace": 16 }
+    },
+    { "id": "lus_0004", "firstName": "Bastien", "lastName": "Orvel", "birthDate": "1993-01-30", "nationalities": ["n_lus"], "positions": [{ "position": "GK", "rating": 20 }], "clubId": "cl_sierra" },
+    { "id": "lus_0005", "firstName": "Ciro", "lastName": "Lambedo", "birthDate": "1997-05-09", "nationalities": ["n_lus"], "positions": [{ "position": "CM", "rating": 20 }, { "position": "DM", "rating": 16 }], "clubId": "cl_sierra" },
+    { "id": "lus_0006", "firstName": "Eloy", "lastName": "Varguena", "birthDate": "2004-09-12", "nationalities": ["n_lus"], "positions": [{ "position": "LW", "rating": 20 }], "clubId": "cl_sierra" },
+    { "id": "lus_0007", "firstName": "Gaspar", "lastName": "Dorneles", "birthDate": "1990-12-01", "nationalities": ["n_lus"], "positions": [{ "position": "CB", "rating": 20 }], "clubId": "cl_valle" },
+    { "id": "lus_0008", "firstName": "Nuno", "lastName": "Pradilla", "birthDate": "2001-04-17", "nationalities": ["n_lus"], "positions": [{ "position": "AM", "rating": 20 }], "clubId": "cl_valle" },
+    { "id": "lus_0009", "firstName": "Marcelo", "lastName": "Quintaval", "nationalities": ["n_lus"], "positions": [{ "position": "ST", "rating": 20 }], "clubId": "cl_valle" }
+  ]
+}

@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "description": "Tabla editable que convierte estadísticas reales (por 90 minutos o porcentajes) en atributos 1-20. Cada atributo es una mezcla ponderada de percentiles de estadísticas, calculados dentro de la misma liga y grupo posicional. Ver DATA_GUIDE.md, sección 'Conversión de estadísticas'.",
+  "settings": {
+    "minCohortSize": 8,
+    "fullReliabilityMinutes": 1350,
+    "minMinutes": 180,
+    "maxZ": 2.4,
+    "positionOffsetSpread": 4.2,
+    "defaultLeagueStrength": 50,
+    "lowerDivisionFactor": 0.8,
+    "leagueScale": [
+      { "strength": 0, "mean": 5.5, "sd": 2.3 },
+      { "strength": 50, "mean": 9.5, "sd": 2.6 },
+      { "strength": 80, "mean": 11.8, "sd": 2.7 },
+      { "strength": 100, "mean": 13.2, "sd": 2.8 }
+    ]
+  },
+  "stats": {
+    "goals_p90": { "label": "Goles por 90", "higherIsBetter": true },
+    "npxg_p90": { "label": "xG sin penaltis por 90", "higherIsBetter": true },
+    "shots_p90": { "label": "Tiros por 90", "higherIsBetter": true },
+    "shots_outside_box_p90": { "label": "Tiros desde fuera del área por 90", "higherIsBetter": true },
+    "shots_on_target_pct": { "label": "% de tiros a puerta", "higherIsBetter": true },
+    "goals_per_shot": { "label": "Goles por tiro", "higherIsBetter": true },
+    "touches_in_box_p90": { "label": "Toques en el área rival por 90", "higherIsBetter": true },
+    "assists_p90": { "label": "Asistencias por 90", "higherIsBetter": true },
+    "xa_p90": { "label": "xA por 90", "higherIsBetter": true },
+    "key_passes_p90": { "label": "Pases clave por 90", "higherIsBetter": true },
+    "through_balls_p90": { "label": "Pases filtrados por 90", "higherIsBetter": true },
+    "passes_completed_p90": { "label": "Pases completados por 90", "higherIsBetter": true },
+    "pass_completion_pct": { "label": "% de pases completados", "higherIsBetter": true },
+    "progressive_passes_p90": { "label": "Pases progresivos por 90", "higherIsBetter": true },
+    "long_pass_completion_pct": { "label": "% de pases largos completados", "higherIsBetter": true },
+    "crosses_completed_p90": { "label": "Centros completados por 90", "higherIsBetter": true },
+    "cross_completion_pct": { "label": "% de centros completados", "higherIsBetter": true },
+    "dribbles_completed_p90": { "label": "Regates completados por 90", "higherIsBetter": true },
+    "dribble_success_pct": { "label": "% de regates con éxito", "higherIsBetter": true },
+    "progressive_carries_p90": { "label": "Conducciones progresivas por 90", "higherIsBetter": true },
+    "miscontrols_p90": { "label": "Malos controles por 90", "higherIsBetter": false },
+    "dispossessed_p90": { "label": "Pérdidas por robo por 90", "higherIsBetter": false },
+    "tackles_won_p90": { "label": "Entradas ganadas por 90", "higherIsBetter": true },
+    "tackle_success_pct": { "label": "% de entradas ganadas", "higherIsBetter": true },
+    "interceptions_p90": { "label": "Intercepciones por 90", "higherIsBetter": true },
+    "blocks_p90": { "label": "Bloqueos por 90", "higherIsBetter": true },
+    "clearances_p90": { "label": "Despejes por 90", "higherIsBetter": true },
+    "recoveries_p90": { "label": "Recuperaciones por 90", "higherIsBetter": true },
+    "pressures_p90": { "label": "Presiones por 90", "higherIsBetter": true },
+    "pressure_success_pct": { "label": "% de presiones con éxito", "higherIsBetter": true },
+    "dribbled_past_p90": { "label": "Veces regateado por 90", "higherIsBetter": false },
+    "errors_p90": { "label": "Errores que acaban en tiro por 90", "higherIsBetter": false },
+    "aerial_duels_won_p90": { "label": "Duelos aéreos ganados por 90", "higherIsBetter": true },
+    "aerial_win_pct": { "label": "% de duelos aéreos ganados", "higherIsBetter": true },
+    "ground_duel_win_pct": { "label": "% de duelos en suelo ganados", "higherIsBetter": true },
+    "fouls_p90": { "label": "Faltas cometidas por 90", "higherIsBetter": true },
+    "yellow_cards_p90": { "label": "Amarillas por 90", "higherIsBetter": true },
+    "distance_km_p90": { "label": "Distancia recorrida (km) por 90", "higherIsBetter": true },
+    "high_intensity_runs_p90": { "label": "Carreras de alta intensidad por 90", "higherIsBetter": true },
+    "sprints_p90": { "label": "Sprints por 90", "higherIsBetter": true },
+    "top_speed_kmh": { "label": "Velocidad máxima (km/h)", "higherIsBetter": true },
+    "penalty_conversion_pct": { "label": "% de penaltis convertidos", "higherIsBetter": true },
+    "free_kick_on_target_pct": { "label": "% de faltas directas a puerta", "higherIsBetter": true },
+    "corner_chances_p90": { "label": "Ocasiones creadas a balón parado por 90", "higherIsBetter": true },
+    "long_throws_p90": { "label": "Saques de banda largos al área por 90", "higherIsBetter": true },
+    "save_pct": { "label": "% de paradas", "higherIsBetter": true },
+    "psxg_minus_ga_p90": { "label": "Goles evitados (PSxG - GC) por 90", "higherIsBetter": true },
+    "one_on_one_save_pct": { "label": "% de paradas en mano a mano", "higherIsBetter": true },
+    "crosses_stopped_pct": { "label": "% de centros atajados", "higherIsBetter": true },
+    "sweeper_actions_p90": { "label": "Acciones de líbero por 90", "higherIsBetter": true },
+    "gk_launch_completion_pct": { "label": "% de saques largos completados (portero)", "higherIsBetter": true },
+    "gk_pass_completion_pct": { "label": "% de pases completados (portero)", "higherIsBetter": true },
+    "clean_sheet_pct": { "label": "% de porterías a cero", "higherIsBetter": true },
+    "penalty_save_pct": { "label": "% de penaltis parados", "higherIsBetter": true }
+  },
+  "attributes": {
+    "finishing": {
+      "outfield": { "goals_per_shot": 0.4, "goals_p90": 0.3, "shots_on_target_pct": 0.3 },
+      "note": "Eficacia: goles por tiro y tiros a puerta. Los goles por 90 aportan volumen sin dominar."
+    },
+    "offTheBall": {
+      "outfield": { "npxg_p90": 0.5, "touches_in_box_p90": 0.5 },
+      "note": "Generar ocasiones sin balón: xG sin penaltis y presencia en el área."
+    },
+    "composure": {
+      "outfield": { "goals_per_shot": 0.3, "pass_completion_pct": 0.3, "dispossessed_p90": 0.2, "errors_p90": 0.2 },
+      "GK": { "errors_p90": 0.5, "gk_pass_completion_pct": 0.5 },
+      "note": "Rendimiento bajo presión: precisión y pocas pérdidas o errores."
+    },
+    "longShots": {
+      "outfield": { "shots_outside_box_p90": 0.6, "shots_on_target_pct": 0.4 },
+      "note": "Si no existe tiros desde fuera del área, queda solo el % a puerta (peso renormalizado)."
+    },
+    "passing": {
+      "outfield": { "pass_completion_pct": 0.45, "progressive_passes_p90": 0.35, "passes_completed_p90": 0.2 },
+      "note": "Ejemplo del enunciado: mezcla de % de pase y pases progresivos, con algo de volumen."
+    },
+    "vision": {
+      "outfield": { "key_passes_p90": 0.4, "xa_p90": 0.35, "through_balls_p90": 0.25 },
+      "note": "Ver el pase que rompe líneas: pases clave, xA y pases filtrados."
+    },
+    "crossing": {
+      "outfield": { "cross_completion_pct": 0.6, "crosses_completed_p90": 0.4 },
+      "note": "Calidad (%) por encima de volumen."
+    },
+    "dribbling": {
+      "outfield": { "dribbles_completed_p90": 0.5, "dribble_success_pct": 0.3, "progressive_carries_p90": 0.2 },
+      "note": "Volumen y eficacia del regate, más conducción progresiva."
+    },
+    "firstTouch": {
+      "outfield": { "miscontrols_p90": 0.5, "dispossessed_p90": 0.3, "pass_completion_pct": 0.2 },
+      "note": "Estadísticas inversas: menos malos controles = mejor primer toque."
+    },
+    "technique": {
+      "outfield": { "dribble_success_pct": 0.35, "pass_completion_pct": 0.35, "miscontrols_p90": 0.3 },
+      "note": "Limpieza técnica general."
+    },
+    "flair": {
+      "outfield": { "dribbles_completed_p90": 0.5, "key_passes_p90": 0.25, "through_balls_p90": 0.25 },
+      "note": "Acciones arriesgadas y creativas."
+    },
+    "tackling": {
+      "outfield": { "tackles_won_p90": 0.5, "tackle_success_pct": 0.5 },
+      "note": "Volumen y eficacia de la entrada."
+    },
+    "marking": {
+      "outfield": { "dribbled_past_p90": 0.5, "tackle_success_pct": 0.25, "blocks_p90": 0.25 },
+      "note": "Que no te superen: estadística inversa 'veces regateado'."
+    },
+    "positioning": {
+      "outfield": { "interceptions_p90": 0.4, "blocks_p90": 0.2, "clearances_p90": 0.2, "dribbled_past_p90": 0.2 },
+      "GK": { "psxg_minus_ga_p90": 0.5, "save_pct": 0.5 },
+      "note": "Estar en el sitio: intercepciones, bloqueos y despejes. En porteros, goles evitados."
+    },
+    "anticipation": {
+      "outfield": { "interceptions_p90": 0.5, "recoveries_p90": 0.5 },
+      "GK": { "sweeper_actions_p90": 0.5, "psxg_minus_ga_p90": 0.5 },
+      "note": "Leer la jugada antes que el rival."
+    },
+    "concentration": {
+      "outfield": { "errors_p90": 0.6, "dribbled_past_p90": 0.4 },
+      "GK": { "errors_p90": 0.6, "clean_sheet_pct": 0.4 },
+      "note": "Pocos errores graves."
+    },
+    "decisions": {
+      "outfield": { "pass_completion_pct": 0.3, "key_passes_p90": 0.2, "dispossessed_p90": 0.25, "errors_p90": 0.25 },
+      "GK": { "save_pct": 0.4, "sweeper_actions_p90": 0.3, "gk_pass_completion_pct": 0.3 },
+      "note": "Aproximación: elegir bien = precisión + pocas pérdidas."
+    },
+    "teamwork": {
+      "outfield": { "pass_completion_pct": 0.4, "pressures_p90": 0.3, "recoveries_p90": 0.3 },
+      "note": "Juego colectivo y trabajo para el equipo."
+    },
+    "workRate": {
+      "outfield": { "pressures_p90": 0.5, "distance_km_p90": 0.3, "recoveries_p90": 0.2 },
+      "note": "Esfuerzo sin balón."
+    },
+    "aggression": {
+      "outfield": { "fouls_p90": 0.4, "pressures_p90": 0.3, "tackles_won_p90": 0.3 },
+      "note": "Implicación física en el duelo. Más faltas = más agresividad (no es 'mejor' ni 'peor')."
+    },
+    "bravery": {
+      "outfield": { "blocks_p90": 0.5, "aerial_duels_won_p90": 0.5 },
+      "note": "Meter el cuerpo: bloqueos y duelos aéreos."
+    },
+    "heading": {
+      "outfield": { "aerial_win_pct": 0.6, "aerial_duels_won_p90": 0.4 },
+      "note": "Dominio aéreo."
+    },
+    "jumping": {
+      "outfield": { "aerial_win_pct": 0.5, "aerial_duels_won_p90": 0.5 },
+      "note": "Se combina después con la altura (ver blendWithBody en statsToAttributes.ts)."
+    },
+    "strength": {
+      "outfield": { "ground_duel_win_pct": 0.7, "aerial_win_pct": 0.3 },
+      "note": "Duelos ganados; se combina con el peso."
+    },
+    "stamina": {
+      "outfield": { "distance_km_p90": 0.7, "high_intensity_runs_p90": 0.3 },
+      "note": "Datos de tracking físico (opcionales)."
+    },
+    "pace": {
+      "outfield": { "top_speed_kmh": 0.7, "sprints_p90": 0.3 },
+      "note": "Velocidad punta; sin tracking queda como dato estimado."
+    },
+    "acceleration": {
+      "outfield": { "sprints_p90": 0.5, "top_speed_kmh": 0.3, "progressive_carries_p90": 0.2 },
+      "note": "Arrancadas; aproximación con sprints."
+    },
+    "agility": {
+      "outfield": { "dribble_success_pct": 0.6, "dribbles_completed_p90": 0.4 },
+      "note": "Aproximación débil; considerar dejarlo como estimado si tienes datos físicos mejores."
+    },
+    "penalties": {
+      "outfield": { "penalty_conversion_pct": 1 },
+      "note": "Muestras pequeñas: se aplica la fiabilidad por minutos igualmente."
+    },
+    "freeKicks": {
+      "outfield": { "free_kick_on_target_pct": 1 },
+      "note": "Solo lanzadores habituales tendrán el dato."
+    },
+    "corners": {
+      "outfield": { "corner_chances_p90": 1 },
+      "note": "Ocasiones a balón parado como proxy."
+    },
+    "longThrows": {
+      "outfield": { "long_throws_p90": 1 },
+      "note": "Rara vez disponible; si falta, se estima."
+    },
+    "reflexes": {
+      "GK": { "psxg_minus_ga_p90": 0.6, "save_pct": 0.4 },
+      "note": "Goles evitados respecto al PSxG es la mejor medida de parada pura."
+    },
+    "handling": {
+      "GK": { "save_pct": 0.5, "errors_p90": 0.5 },
+      "note": "Blocar sin errores."
+    },
+    "oneOnOnes": {
+      "GK": { "one_on_one_save_pct": 0.6, "psxg_minus_ga_p90": 0.4 },
+      "note": "Mano a mano."
+    },
+    "aerialReach": {
+      "GK": { "crosses_stopped_pct": 1 },
+      "note": "Centros atajados."
+    },
+    "communication": {
+      "GK": { "crosses_stopped_pct": 0.5, "clean_sheet_pct": 0.5 },
+      "note": "Proxy: dominio del área y porterías a cero."
+    },
+    "kicking": {
+      "GK": { "gk_launch_completion_pct": 1 },
+      "note": "Saques largos completados."
+    },
+    "playWithFeet": {
+      "GK": { "gk_pass_completion_pct": 0.7, "sweeper_actions_p90": 0.3 },
+      "note": "Juego con los pies y salida."
+    }
+  }
+}

@@ -1,0 +1,4 @@
+id,name,short_name,nation,city,reputation,founded,primary_color,secondary_color,stadium,capacity,training_facilities,youth_facilities,transfer_budget,wage_budget,balance,league_id
+cl_puerto,Atlético Puertomar,Puertomar,n_lus,Puertomar,6800,1911,#c8102e,#ffffff,Estadio del Faro,42000,15,14,25000000,650000,18000000,c_lus_1
+cl_sierra,Club Sierra Alta,Sierra Alta,n_lus,Sierra Alta,5200,1924,#1d428a,#f2c200,Campo de la Sierra,21000,12,13,6000000,240000,3500000,c_lus_1
+cl_valle,Deportivo Valleoscuro,Valleoscuro,n_lus,Valleoscuro,3900,1950,#006a4e,#000000,,,,,,,,c_lus_1

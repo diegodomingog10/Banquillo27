@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/* Tema Banquillo: oscuro con acento morado. Verde, ámbar y rojo SOLO para estados
+   (bien / atención / mal); el morado es para acción, selección y escala de atributos. */
+@theme {
+  --color-ink: #0E0C14;
+  --color-panel: #13111B;
+  --color-card: #17141F;
+  --color-card2: #1C1827;
+  --color-raise: #221B33;
+  --color-line: #241F30;
+  --color-line2: #2D2838;
+  --color-text: #ECEAF2;
+  --color-soft: #C9C4D6;
+  --color-muted: #A39DB3;
+  --color-faint: #6E6880;
+  --color-accent: #8B5CF6;
+  --color-accent-hover: #7C4DEB;
+  --color-accent-soft: #A78BFA;
+  --color-accent-text: #C4B5FD;
+  --color-accent-bg: #241C38;
+  --color-accent-line: #3A3150;
+  --color-good: #34D399;
+  --color-good-strong: #15803D;
+  --color-good-text: #4ADE80;
+  --color-good-bg: #14321F;
+  --color-warn: #FCD34D;
+  --color-warn-bg: #362A12;
+  --color-orange: #FDBA74;
+  --color-orange-bg: #3A2414;
+  --color-bad: #F87171;
+  --color-bad-strong: #B91C1C;
+  --color-bad-text: #FCA5A5;
+  --color-bad-bg: #3A1D24;
+  --color-pitch: #121915;
+  --color-pitch-line: #22302A;
+  --font-sans: "Inter Variable", Inter, system-ui, sans-serif;
+  --font-display: "Manrope Variable", Manrope, "Inter Variable", system-ui, sans-serif;
+}
+
+:root {
+  --font-scale: 1;
+  color-scheme: dark;
+}
+html { font-size: calc(14px * var(--font-scale)); }
+body { background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--color-accent-soft); outline-offset: 2px; }
+table { font-variant-numeric: tabular-nums; }
+.num { font-variant-numeric: tabular-nums; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2D2838; border-radius: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+select, input, button { font: inherit; }
