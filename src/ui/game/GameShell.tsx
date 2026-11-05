@@ -9,6 +9,8 @@ import { ClubScreen } from './ClubScreen';
 import { Competitions } from './Competitions';
 import { Dashboard } from './Dashboard';
 import { InboxScreen } from './InboxScreen';
+import { LiveMatchScreen } from './LiveMatchScreen';
+import { PostMatchScreen } from './PostMatchScreen';
 import { MatchReport } from './MatchReport';
 import { PlayerScreen } from './PlayerScreen';
 import { PreMatch } from './PreMatch';
@@ -35,7 +37,7 @@ export function useContinue() {
     const st = useGame.getState();
     const d = st.dashboard;
     if (st.busy || !d) return;
-    if (d.pendingMatch) { go('prematch', { fixtureId: d.pendingMatch.id }); return; }
+    if (d.pendingMatch) { go(st.nav.screen === 'live' ? 'live' : 'prematch', { fixtureId: d.pendingMatch.id }); return; }
     if (d.blocking) { go('inbox', { messageId: null }); return; }
     setBusy(true);
     setStatus(null);
@@ -88,10 +90,11 @@ export function GameShell() {
   };
   const label = d.pendingMatch ? 'Ir al partido' : d.blocking ? 'Mensaje pendiente' : t('menu.continue');
   const initials = d.manager.split(' ').map((x) => x[0]).join('').slice(0, 2).toUpperCase();
-  const current = nav.screen === 'player' || nav.screen === 'prematch' || nav.screen === 'match' ? null : nav.screen;
+  const current = ['player', 'prematch', 'match', 'live', 'postmatch'].includes(nav.screen) ? null : nav.screen;
   const screen: ReactNode = {
     dashboard: <Dashboard />, inbox: <InboxScreen />, squad: <SquadScreen />, tactics: <TacticsScreen />, competitions: <Competitions />,
     club: <ClubScreen />, player: <PlayerScreen />, prematch: <PreMatch />, match: <MatchReport />,
+    live: <LiveMatchScreen />, postmatch: <PostMatchScreen />,
   }[nav.screen];
 
   return (

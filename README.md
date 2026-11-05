@@ -4,10 +4,9 @@ Simulador de gestión de fútbol en el navegador: eres el entrenador, tomas deci
 (tácticas, alineaciones, fichajes, entrenamiento, finanzas) y un motor de simulación resuelve
 partidos y el paso del tiempo. Funciona 100 % en local, sin backend.
 
-> **Estado: Fase 4 de 9 — interfaz base y tácticas.** Partida jugable temporada tras temporada con
-> la interfaz definitiva (oscura con acento morado): menú principal, panel personalizable, bandeja,
-> plantilla con vistas, perfil de jugador, tácticas con arrastrar y soltar, competiciones, club y
-> buscador global. El partido en directo llega en la Fase 5.
+> **Estado: Fase 5 de 9 — partido en directo.** Partida jugable temporada tras temporada con la
+> interfaz definitiva y los partidos en directo: campo 2D, comentarios, estadísticas en vivo,
+> cambios, ajustes rápidos, gritos, consejos del cuerpo técnico y post-partido con rueda de prensa.
 
 ## Requisitos e instalación
 
@@ -220,6 +219,32 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 - Las secciones Entrenamiento, Fichajes y Finanzas aparecen en el menú marcadas con su fase; los
   botones de mercado (renovar, ofrecer, ceder) están desactivados hasta la Fase 6.
 
+## Partido en directo (Fase 5)
+
+- **Previa:** «Jugar en directo» o «Resultado directo» (dirige el cuerpo técnico).
+- **Campo 2D** visto desde arriba: los 22 jugadores como discos que se mueven con el balón (con
+  sombra), reacciones a goles y tarjetas, y equipación visitante alternativa si los colores chocan.
+  Velocidades 1x, 2x, 4x y pausa; modos «Completo», «Momentos clave» (salta de ocasión en
+  ocasión) y «Resultado directo». Se pausa solo en el descanso, tras un gol y si te lesionan o
+  expulsan a un jugador.
+- **Comentarios** en español generados desde los eventos (`src/engine/commentary.ts`).
+- **Estadísticas en vivo:** posesión, tiros, a puerta, xG, pases y acierto, córners, faltas,
+  tarjetas y mapa de calor de cada equipo.
+- **Controles:** cambios (máximo 5 en 3 ventanas, con condición y nota de cada jugador),
+  mentalidad, los 13 ajustes rápidos (se mantienen hasta quitarlos, combinables aunque se
+  contradigan), gritos (cambian el estado mental, no los atributos; el cuerpo técnico resume el
+  efecto) y la opción de que el asistente haga los cambios.
+- **Cuerpo técnico:** aconseja activar o quitar ajustes según el marcador, el cansancio, la presión
+  y la línea del rival o jugar con uno más o menos, y propone cambios concretos («X está agotado,
+  entra Y»), aplicables con un botón (`src/engine/liveMatch.ts`).
+- **Post-partido:** resultado, goleadores, titular (exhibición, victoria con fortuna, derrota
+  inmerecida…), hombre del partido, notas, informe del cuerpo técnico, consecuencias en la moral y
+  **rueda de prensa** con preguntas según el contexto (resultado, jugador destacado, expulsión,
+  próximo rival); cada respuesta mueve la moral del vestuario o del jugador aludido y genera un
+  titular en las noticias (`src/engine/postMatch.ts`).
+- El partido en directo usa el mismo motor y queda guardado igual que uno simulado; con las mismas
+  órdenes en los mismos momentos, el resultado es el mismo.
+
 ## Decisiones de diseño (ambigüedades resueltas)
 
 Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manager:
@@ -250,7 +275,7 @@ Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manage
 2. ✅ Motor de partido (sin interfaz), script de calibración y pruebas.
 3. ✅ Calendario, ligas, clasificación, bucle "Continuar" y bandeja de entrada.
 4. ✅ Interfaz base (menú, panel, plantilla, perfil) y tácticas.
-5. Pantalla de partido (2D, feed, estadísticas, ajustes, gritos) y post-partido.
+5. ✅ Pantalla de partido (2D, feed, estadísticas, ajustes, gritos) y post-partido.
 6. Fichajes, scouting, contratos, finanzas y directiva.
 7. Entrenamiento, lesiones, moral, progresión y fin de temporada.
 8. IA de clubes, copas y torneos continentales, día de cierre, Data Hub y pulido.

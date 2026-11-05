@@ -32,13 +32,14 @@ export const DEFAULT_UI: UiPrefs = {
 
 /** Completa campos añadidos en versiones posteriores (partidas antiguas). */
 export function ensureDefaults(state: GameState): GameState {
-  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity'>>;
+  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity' | 'postMatch'>>;
   if (!s.ui) s.ui = structuredClone(DEFAULT_UI);
   for (const id of DASHBOARD_TILES) if (!s.ui.dashboard.some((t) => t.id === id)) s.ui.dashboard.push({ id, visible: true });
   s.ui.squadViews ??= [];
   s.ui.shortlist ??= [];
   if (s.userLineup === undefined) s.userLineup = null;
   if (typeof s.tacticFamiliarity !== 'number') s.tacticFamiliarity = 75;
+  if (s.postMatch === undefined) s.postMatch = null;
   return state;
 }
 

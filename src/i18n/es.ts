@@ -7,7 +7,7 @@ export const es = {
   app: {
     title: 'Banquillo',
     subtitle: 'Simulador de entrenador de fútbol',
-    phase: 'Fase 4 · Interfaz',
+    phase: 'Fase 5 · Partido en directo',
   },
   menu: {
     newGame: 'Nueva partida',

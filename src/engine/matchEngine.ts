@@ -14,6 +14,7 @@
  *   tácticas, ajustes, gritos) para la vista en directo de la Fase 5.
  */
 import { ATTR_GROUP_OF, type AttrKey } from '../data/attributes';
+import { mainPosition } from '../data/ability';
 import type { Position } from '../data/positions';
 import { ROLE_BY_ID, type Duty, type RoleDef } from '../data/roles';
 import type { Injury, Match, MatchEvent, Player, TeamMatchStats } from '../data/schema';
@@ -160,6 +161,59 @@ export interface MatchResult {
   phases: number;
   /** Diagnóstico de calibración. */
   diagnostics: { avgDensity: number };
+}
+
+export interface LivePlayer {
+  id: string;
+  name: string;
+  fullName: string;
+  position: Position;
+  role: string;
+  duty: Duty;
+  slot: number;
+  /** Posición base en el campo (0-1, desde la perspectiva de su equipo). */
+  x: number;
+  y: number;
+  onPitch: boolean;
+  used: boolean;
+  sentOff: boolean;
+  injured: boolean;
+  isGk: boolean;
+  condition: number;
+  yellow: number;
+  goals: number;
+  assists: number;
+  rating: number | null;
+  caRef: number;
+}
+
+export interface LiveTeam {
+  clubId: string;
+  name: string;
+  goals: number;
+  stats: TeamMatchStats;
+  mentality: number;
+  baseMentality: number;
+  instructions: TeamInstructions;
+  tweaks: TweakId[];
+  mental: TeamMentalState;
+  subsUsed: number;
+  subWindowsUsed: number;
+  ai: boolean;
+  players: LivePlayer[];
+  onCount: number;
+  avgCondition: number;
+}
+
+export interface LiveSnapshot {
+  minute: number;
+  second: number;
+  stoppage: number;
+  period: number;
+  finished: boolean;
+  maxSubstitutions: number;
+  teams: [LiveTeam, LiveTeam];
+  penalties: { home: number; away: number } | null;
 }
 
 // ---------------------------------------------------------------- calidades (atributos ponderados)
@@ -390,7 +444,7 @@ export class MatchSimulation {
       const consistencySd = ((21 - p.attributes.consistency) / 20) * 0.045;
       const importance = this.input.context.importance ?? 0;
       const rp: RP = {
-        p, side, team: t, slot, startSlot: slot, pos: s?.position ?? 'CM', role: ROLE_BY_ID.get(s?.role ?? '') ?? (ROLE_BY_ID.get('centralMidfielder') as RoleDef),
+        p, side, team: t, slot, startSlot: slot, pos: s?.position ?? mainPosition(p.positions), role: ROLE_BY_ID.get(s?.role ?? '') ?? (ROLE_BY_ID.get('centralMidfielder') as RoleDef),
         duty: s?.duty ?? 'support', x: s?.x ?? 0.5, y: s?.y ?? 0.5, individual: s?.individual ?? {},
         cond: p.condition, startCond: p.condition, fatPhys: 1, fatOther: 1, mod: 1,
         ax: 0, ay: 0, dx: 0, dy: 0, attInv: 1, defInv: 1, mPhys: 1, mTech: 1, mMent: 1, mOther: 1,
@@ -659,6 +713,86 @@ export class MatchSimulation {
     this.teams[side].ai = ai;
   }
 
+  // ------------------------------------------------ estado en directo (vista del partido)
+  get eventCount(): number {
+    return this.events.length;
+  }
+
+  eventsFrom(index: number): MatchEvent[] {
+    return this.events.slice(index);
+  }
+
+  get replayCount(): number {
+    return this.replay.length;
+  }
+
+  replayFrom(index: number): ReplayAction[] {
+    return this.replay.slice(index);
+  }
+
+  shoutsFrom(index: number): ShoutOutcome[] {
+    return this.shoutLog.slice(index);
+  }
+
+  /** Foto del partido en este momento (serializable). */
+  live(): LiveSnapshot {
+    const per = this.periods[this.periodIdx];
+    const totalActions = this.teams[0].actions + this.teams[1].actions || 1;
+    const teams = this.teams.map((t) => {
+      const opp = this.teams[t.side === 0 ? 1 : 0];
+      const result = Math.sign(t.goals - opp.goals);
+      const players = t.players.map((r) => ({
+        id: r.p.id,
+        name: r.p.commonName ?? r.p.lastName,
+        fullName: r.p.commonName ?? `${r.p.firstName} ${r.p.lastName}`,
+        position: r.pos,
+        role: r.role.id,
+        duty: r.duty,
+        slot: r.slot,
+        x: r.x,
+        y: r.y,
+        onPitch: r.onPitch,
+        used: r.used,
+        sentOff: r.sentOff,
+        injured: r.injured,
+        isGk: r.isGkNow,
+        condition: Math.round(r.cond),
+        yellow: r.st.yellow,
+        goals: r.st.goals,
+        assists: r.st.assists,
+        rating: r.used ? this.rating(r, result, opp.goals) : null,
+        caRef: r.p.ca,
+      }));
+      return {
+        clubId: t.input.clubId,
+        name: t.input.name,
+        goals: t.goals,
+        stats: { ...t.stats, xg: round3(t.stats.xg), possession: Math.round((t.actions / totalActions) * 100) },
+        mentality: t.mentality,
+        baseMentality: t.tactic.mentality,
+        instructions: { ...t.inst },
+        tweaks: [...t.tweaks],
+        mental: { ...t.mental },
+        subsUsed: t.subsUsed,
+        subWindowsUsed: t.subWindows.size,
+        ai: t.ai,
+        players,
+        onCount: t.players.filter((r) => r.onPitch).length,
+        avgCondition: Math.round(t.players.filter((r) => r.onPitch && !r.isGkNow).reduce((a, r, _, arr) => a + r.cond / arr.length, 0)),
+      };
+    }) as [LiveTeam, LiveTeam];
+    return {
+      minute: this.curMinute,
+      second: this.curSecond,
+      stoppage: this.curStoppage,
+      period: per?.period ?? 2,
+      finished: this.finished,
+      maxSubstitutions: this.input.context.maxSubstitutions ?? 5,
+      teams,
+      penalties: this.penalties,
+    };
+  }
+
   /** Simula una fase. Devuelve false si el partido ha terminado. */
   step(): boolean {
     if (this.finished) return false;
@@ -676,7 +810,8 @@ export class MatchSimulation {
     // Tiempo
     if (this.phaseInPeriod < per.phases) {
       const m = per.start + (this.phaseInPeriod / per.phases) * per.length;
-      this.curMinute = Math.floor(m);
+      // Minuto «de fútbol»: el primero es el 1'
+      this.curMinute = Math.floor(m) + 1;
       this.curSecond = Math.floor((m - Math.floor(m)) * 60);
       this.curStoppage = 0;
     } else {

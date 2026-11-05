@@ -20,6 +20,7 @@ import { clamp, createRng, hashString } from './rng';
 import { computeStandings, type StandingRow } from './standings';
 import { FORMATIONS, FORMATION_IDS, tacticFromFormation, type Mentality, type TeamTactic } from './tactics';
 import { DEFAULT_UI, growFamiliarity, resolveUserLineup, type UiPrefs } from './manager';
+import { buildPostMatch, type PostMatchState } from './postMatch';
 
 export const GAME_STATE_VERSION = 1;
 
@@ -121,6 +122,8 @@ export interface GameState {
   tacticFamiliarity: number;
   /** Preferencias de interfaz guardadas con la partida (panel, vistas, lista de seguimiento). */
   ui: UiPrefs;
+  /** Post-partido del último partido del usuario (informe, moral, rueda de prensa). */
+  postMatch: PostMatchState | null;
   inbox: Message[];
   news: { date: string; text: string; type: string }[];
   history: SeasonRecord[];
@@ -317,6 +320,7 @@ export function newGame(setup: NewGameSetup): GameState {
     userLineup: null,
     tacticFamiliarity: 80,
     ui: structuredClone(DEFAULT_UI),
+    postMatch: null,
     inbox: [],
     news: [],
     history: [],
@@ -585,12 +589,11 @@ export function buildMatchInput(state: GameState, f: Fixture, detail: 'fast' | '
 const KEY_EVENTS = new Set<MatchEvent['type']>(['goal', 'yellow', 'secondYellow', 'red', 'substitution', 'injury', 'penaltyMissed', 'penalty']);
 
 /** Simula un partido y aplica todas sus consecuencias. */
-function playFixture(state: GameState, f: Fixture, detail: 'fast' | 'full', playedToday: Set<string>): MatchResult {
+function playFixture(state: GameState, f: Fixture, detail: 'fast' | 'full', playedToday: Set<string>, precomputed?: MatchResult): MatchResult {
   const ix = indexes(state);
   // Sancionados antes del partido (cumplen sanción con este partido)
   const suspendedBefore = [f.homeId, f.awayId].flatMap((c) => (ix.squads.get(c) ?? []).filter((p) => p.cards.suspendedMatches > 0));
-  const input = buildMatchInput(state, f, detail);
-  const r = simulateMatch(input);
+  const r = precomputed ?? simulateMatch(buildMatchInput(state, f, detail));
   const res = r.match.result!;
   const winnerId = r.winner === 'home' ? f.homeId : r.winner === 'away' ? f.awayId : null;
   f.played = true;
@@ -706,12 +709,30 @@ function emptySeasonStats(season: string, clubId: string | null, competitionId: 
 }
 
 /** Juega el partido pendiente del usuario (modo completo) y el resto de partidos del día. */
-export function playUserMatch(state: GameState): { fixture: Fixture; result: MatchResult } {
+export function pendingUserFixture(state: GameState): Fixture {
   const id = state.pendingUserMatchId;
   const f = id ? indexes(state).fixtures.get(id) : undefined;
   if (!f || f.played) throw new Error('No hay partido pendiente del usuario');
+  return f;
+}
+
+/** Entrada del motor para el partido del usuario (para jugarlo en directo). */
+export function prepareUserMatch(state: GameState) {
+  const f = pendingUserFixture(state);
+  const input = buildMatchInput(state, f, 'full');
+  return { fixture: f, input, userSide: (f.homeId === state.userClubId ? 0 : 1) as 0 | 1 };
+}
+
+/**
+ * Juega el partido pendiente del usuario y el resto de partidos del día. Con `precomputed`
+ * se usa el resultado del partido jugado en directo.
+ */
+export function playUserMatch(state: GameState, precomputed?: MatchResult): { fixture: Fixture; result: MatchResult } {
+  const f = pendingUserFixture(state);
   const playedToday = new Set<string>();
-  const result = playFixture(state, f, 'full', playedToday);
+  const moraleBefore = new Map((indexes(state).squads.get(state.userClubId) ?? []).map((p) => [p.id, p.morale]));
+  const result = playFixture(state, f, 'full', playedToday, precomputed);
+  state.postMatch = buildPostMatch(state, f, result, moraleBefore);
   const others = (indexes(state).byDate.get(f.date) ?? []).filter((x) => !x.played);
   for (const o of others) playFixture(state, o, 'fast', playedToday);
   for (const x of indexes(state).byDate.get(f.date) ?? []) afterFixture(state, x);

@@ -19,9 +19,9 @@ export function PreMatch() {
   const play = async () => {
     setBusy(true);
     try {
-      const { match, dashboard } = await game('playMatch');
+      const { dashboard } = await game('playMatch');
       setDashboard(dashboard);
-      go('match', { fixtureId: match?.fixture.id ?? null });
+      go('postmatch');
       setStatus('Partido jugado');
     } catch (e) {
       setStatus((e as Error).message);
@@ -41,9 +41,10 @@ export function PreMatch() {
         <div className="mt-1 text-[13px] text-muted">{f.homeId === pre.opponent.id ? pre.opponent.stadium : 'En casa'}</div>
         <div className="mt-5 flex flex-wrap justify-center gap-2.5">
           <Button variant="ghost" icon="tactics" onClick={() => go('tactics')}>Cambiar táctica</Button>
-          <Button variant="primary" size="lg" icon="whistle" onClick={() => void play()} disabled={busy}>{busy ? 'Jugando…' : 'Jugar partido'}</Button>
+          <Button variant="secondary" size="lg" icon="chevronRight" onClick={() => void play()} disabled={busy}>{busy ? 'Jugando…' : 'Resultado directo'}</Button>
+          <Button variant="primary" size="lg" icon="whistle" onClick={() => go('live')} disabled={busy}>Jugar en directo</Button>
         </div>
-        <p className="mt-3 text-xs text-muted">Resultado directo. La vista en directo (2D, comentarios, cambios, ajustes y gritos) llega en la Fase 5.</p>
+        <p className="mt-3 text-xs text-muted">En directo: campo 2D, comentarios, estadísticas, cambios, ajustes rápidos y gritos. Resultado directo: el cuerpo técnico dirige el partido.</p>
       </Card>
       {pre.replaced.length > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-warn-bg bg-[#221C10] px-4 py-2.5 text-[13px]"><Icon name="medical" className="text-warn" />El asistente ha cubierto la baja de {pre.replaced.join(', ')} en tu once.</div>

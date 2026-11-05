@@ -5,7 +5,10 @@
  */
 import { generateWorld } from '../data/generator/generateWorld';
 import type { WorldDatabase } from '../data/schema';
-import { continueGame, markRead, newGame, playUserMatch, resolveMessage, type GameState, type Manager } from '../engine/game';
+import { continueGame, markRead, newGame, playUserMatch, prepareUserMatch, resolveMessage, type GameState, type Manager } from '../engine/game';
+import { LiveMatch } from '../engine/liveMatch';
+import type { MatchCommand } from '../engine/matchEngine';
+import { answerPress, skipPress } from '../engine/postMatch';
 import { competitionView, competitionsList, dashboardView, inboxView, matchView, preMatchView, squadView } from '../engine/views';
 import { clubView, opponentAnalysis, playerProfile, search, squadTable, tacticsView } from '../engine/profileViews';
 import { setUserLineup, setUserTactic, type DashboardTile, type SquadView } from '../engine/manager';
@@ -13,6 +16,7 @@ import type { TeamTactic } from '../engine/tactics';
 import { deleteSave, deserializeGame, listSaves, loadGame, saveGame, serializeGame } from '../store/saves';
 
 let state: GameState | null = null;
+let live: { match: LiveMatch; fixtureId: string } | null = null;
 let autosave = true;
 
 function need(): GameState {
@@ -46,10 +50,58 @@ export const api = {
   },
   async playMatch() {
     const s = need();
+    live = null;
     const { fixture } = playUserMatch(s);
     if (autosave) await saveGame(s, { auto: true }).catch(() => undefined);
     return { match: matchView(s, fixture.id), dashboard: dashboardView(s) };
   },
+  /** Empieza (o retoma) el partido del usuario en directo. */
+  async liveStart(p?: { assistant?: boolean }) {
+    const s = need();
+    const prep = prepareUserMatch(s);
+    if (!live || live.fixtureId !== prep.fixture.id) live = { match: new LiveMatch(prep.input, prep.userSide, p?.assistant ?? false), fixtureId: prep.fixture.id };
+    const home = s.world.clubs.find((c) => c.id === prep.fixture.homeId)!;
+    const away = s.world.clubs.find((c) => c.id === prep.fixture.awayId)!;
+    return {
+      fixtureId: prep.fixture.id,
+      userSide: prep.userSide,
+      home: { id: home.id, name: home.name, primary: home.colors.primary, secondary: home.colors.secondary },
+      away: { id: away.id, name: away.name, primary: away.colors.primary, secondary: away.colors.secondary },
+      stadium: home.stadium.name,
+      tick: live.match.tick({ phases: 1 }),
+    };
+  },
+  async liveTick(p: { phases?: number; untilKey?: boolean; toEnd?: boolean }) {
+    if (!live) throw new Error('No hay partido en directo');
+    return live.match.tick(p);
+  },
+  async liveCommand(p: { cmd: MatchCommand }) {
+    if (!live) throw new Error('No hay partido en directo');
+    live.match.command(p.cmd);
+    return true;
+  },
+  async liveAssistant(p: { on: boolean }) {
+    if (!live) throw new Error('No hay partido en directo');
+    live.match.setAssistant(p.on);
+    return true;
+  },
+  /** Termina el partido en directo y aplica todas sus consecuencias en la partida. */
+  async liveFinish() {
+    const s = need();
+    if (!live) throw new Error('No hay partido en directo');
+    const result = live.match.result();
+    live = null;
+    playUserMatch(s, result);
+    if (autosave) await saveGame(s, { auto: true }).catch(() => undefined);
+    return { dashboard: dashboardView(s) };
+  },
+  async postMatch() {
+    const s = need();
+    if (!s.postMatch) return null;
+    return { post: s.postMatch, match: matchView(s, s.postMatch.fixtureId) };
+  },
+  async pressAnswer(p: { questionId: string; optionId: string }) { return answerPress(need(), p.questionId, p.optionId); },
+  async pressSkip() { return skipPress(need()); },
   async dashboard() { return dashboardView(need()); },
   async inbox() { return inboxView(need()); },
   async resolveMessage(p: { id: string; actionId: string | null }) {
@@ -91,7 +143,7 @@ export const api = {
   async exportSave() { return serializeGame(need()); },
   async importSave(p: { text: string }) { state = deserializeGame(p.text); return dashboardView(state); },
   async setAutosave(p: { on: boolean }) { autosave = p.on; return autosave; },
-  async close() { state = null; return true; },
+  async close() { state = null; live = null; return true; },
 };
 
 export type GameApi = typeof api;
