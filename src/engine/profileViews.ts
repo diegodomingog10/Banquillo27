@@ -333,6 +333,8 @@ const SCREENS: { id: string; label: string; keywords: string }[] = [
   { id: 'finances', label: 'Finanzas', keywords: 'finanzas dinero presupuesto salarios ingresos gastos' },
   { id: 'training', label: 'Entrenamiento', keywords: 'entrenamiento plan carga lesiones medico cantera juveniles staff tecnico' },
   { id: 'dressing', label: 'Vestuario', keywords: 'vestuario moral promesas reunion lideres grupos' },
+  { id: 'datahub', label: 'Data Hub', keywords: 'data hub estadisticas xg goleadores lideres percentiles' },
+  { id: 'world', label: 'Mundo', keywords: 'mundo rankings ligas entrenadores selecciones carrera palmares' },
   { id: 'board', label: 'Directiva', keywords: 'directiva confianza objetivos peticiones' },
 ];
 

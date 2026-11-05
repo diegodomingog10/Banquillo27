@@ -22,6 +22,8 @@ import { FinancesScreen } from './FinancesScreen';
 import { BoardScreen, FiredScreen } from './BoardScreen';
 import { TrainingScreen } from './TrainingScreen';
 import { DressingScreen } from './DressingScreen';
+import { DataHubScreen } from './DataHubScreen';
+import { WorldScreen } from './WorldScreen';
 
 const NAV: { id: GameScreen | null; label: string; icon: IconName; soon?: string }[] = [
   { id: 'dashboard', label: 'Inicio', icon: 'home' },
@@ -33,6 +35,8 @@ const NAV: { id: GameScreen | null; label: string; icon: IconName; soon?: string
   { id: 'transfers', label: 'Fichajes', icon: 'transfers' },
   { id: 'finances', label: 'Finanzas', icon: 'finance' },
   { id: 'competitions', label: 'Competiciones', icon: 'trophy' },
+  { id: 'datahub', label: 'Data Hub', icon: 'chart' },
+  { id: 'world', label: 'Mundo', icon: 'globe' },
   { id: 'club', label: 'Club', icon: 'club' },
   { id: 'board', label: 'Directiva', icon: 'target' },
 ];
@@ -55,6 +59,7 @@ export function useContinue() {
       setStatus(t(`stop.${result.stop}`));
       if (result.stop === 'userMatch' && result.fixtureId) go('prematch', { fixtureId: result.fixtureId });
       else if (result.stop === 'blocking') go('inbox', { messageId: null });
+      else if (result.stop === 'deadlineDay') go('transfers');
       else if (result.messageIds.length > 0 && result.stop !== 'limit') go('inbox', { messageId: result.messageIds[0] ?? null });
     } catch (e) {
       setStatus((e as Error).message);
@@ -104,7 +109,7 @@ export function GameShell() {
     club: <ClubScreen />, player: <PlayerScreen />, prematch: <PreMatch />, match: <MatchReport />,
     live: <LiveMatchScreen />, postmatch: <PostMatchScreen />,
     transfers: <TransfersScreen />, finances: <FinancesScreen />, board: <BoardScreen />,
-    training: <TrainingScreen />, dressing: <DressingScreen />,
+    training: <TrainingScreen />, dressing: <DressingScreen />, datahub: <DataHubScreen />, world: <WorldScreen />,
   }[nav.screen];
 
   return (

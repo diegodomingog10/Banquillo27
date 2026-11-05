@@ -44,6 +44,7 @@ export function TransfersScreen() {
         <Stat label="Mercado" value={tr.window.open ? 'Abierto' : 'Cerrado'} tone={tr.window.open ? 'good' : undefined} hint={tr.window.open ? 'Los fichajes son oficiales al cerrar el acuerdo' : 'Puedes negociar; serán oficiales al abrir'} />
         <Stat label="Operaciones en curso" value={pendingCount} hint={tr.embargo ? 'Sanción: no puedes fichar' : undefined} tone={tr.embargo ? 'bad' : undefined} />
       </Card>
+      <DeadlineCard onChange={() => { load(); setTab((x) => x); }} onOffers={() => setTab('deals')} />
       <Tabs label="Secciones de fichajes" value={tab} onChange={setTab} items={[
         { id: 'search', label: 'Buscar', icon: 'search' }, { id: 'shortlist', label: 'Seguimiento', icon: 'star' },
         { id: 'deals', label: `Operaciones${pendingCount ? ` (${pendingCount})` : ''}`, icon: 'transfers' }, { id: 'scouts', label: 'Ojeadores', icon: 'eye' },
@@ -56,6 +57,35 @@ export function TransfersScreen() {
       {tab === 'listed' && <Listed tr={tr} />}
       {tab === 'history' && <History tr={tr} />}
     </div>
+  );
+}
+
+type Dl = NonNullable<Awaited<ReturnType<typeof game<'deadline'>>>>;
+
+/** Día de cierre: el día avanza por horas y las operaciones aparecen en directo. */
+function DeadlineCard({ onChange, onOffers }: { onChange: () => void; onOffers: () => void }) {
+  const { dashboard, setDashboard } = useGame();
+  const [dl, setDl] = useState<Dl | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { void game('deadline').then(setDl); }, [dashboard?.date]);
+  if (!dl) return null;
+  const step = async () => {
+    setBusy(true);
+    try { const r = await game('deadlineStep'); setDl(r.view); setDashboard(r.dashboard); onChange(); } finally { setBusy(false); }
+  };
+  const pct = Math.round(((dl.hour - 9) / (dl.end - 9)) * 100);
+  return (
+    <Card title="Día de cierre del mercado" icon="bolt" actions={<span className="num font-display text-xl font-bold">{String(Math.min(dl.hour, 24)).padStart(2, '0')}:00</span>}>
+      <div className="mb-3 h-1.5 rounded bg-[#2A2536]"><div className="h-1.5 rounded bg-accent" style={{ width: `${pct}%` }} /></div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="primary" icon="arrowRight" disabled={busy || dl.done} onClick={() => void step()}>{dl.done ? 'Mercado cerrado a medianoche' : 'Avanzar dos horas'}</Button>
+        {dl.pending > 0 && <Button onClick={onOffers}>Tienes {dl.pending} oferta{dl.pending === 1 ? '' : 's'} pendiente{dl.pending === 1 ? '' : 's'}</Button>}
+        <span className="text-xs text-muted">Las operaciones se cierran hasta las 23:00. Si pulsas Continuar, el resto del día se resuelve solo.</span>
+      </div>
+      <ul className="mt-3 flex max-h-52 flex-col gap-1 overflow-auto text-[13px]" aria-live="polite">
+        {dl.feed.length === 0 ? <li className="text-muted">Todo tranquilo por ahora…</li> : dl.feed.map((f, i) => <li key={i} className="flex gap-3"><span className="num w-12 shrink-0 text-muted">{String(f.hour).padStart(2, '0')}:00</span><span>{f.text}</span></li>)}
+      </ul>
+    </Card>
   );
 }
 

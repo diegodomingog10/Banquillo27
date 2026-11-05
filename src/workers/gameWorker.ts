@@ -22,6 +22,8 @@ import { marketSearch, type MarketFilter } from '../engine/market';
 import { setIndividualTraining, setTrainingPlan, type IndividualFocus, type TrainingPlan } from '../engine/training';
 import { dressingView, talkToPlayer, teamMeeting, type PlayerTalk, type TeamTalk } from '../engine/dressingRoom';
 import { awardsView, trainingView } from '../engine/clubLifeViews';
+import { deadlineStep, deadlineView } from '../engine/aiClubs';
+import { careerView, playersDataView, teamDataView, worldView } from '../engine/dataHub';
 import type { Position } from '../data/positions';
 import { deleteSave, deserializeGame, listSaves, loadGame, saveGame, serializeGame } from '../store/saves';
 
@@ -182,6 +184,13 @@ export const api = {
   async talkToPlayer(p: { playerId: string; talk: PlayerTalk }) { return talkToPlayer(need(), p.playerId, p.talk); },
   async teamMeeting(p: { talk: TeamTalk }) { return { ...teamMeeting(need(), p.talk), view: dressingView(need()) }; },
   async awards() { return awardsView(need()); },
+  // ---------------------------------------------------------------- Fase 8
+  async deadline() { return deadlineView(need()); },
+  async deadlineStep() { const s = need(); deadlineStep(s); return { view: deadlineView(s), dashboard: dashboardView(s) }; },
+  async teamData() { return teamDataView(need()); },
+  async playersData() { return playersDataView(need()); },
+  async world() { return worldView(need()); },
+  async career() { return careerView(need()); },
   async boardRequest(p: { kind: BoardRequestKind }) { return { ...boardRequest(need(), p.kind), view: boardView(need()) }; },
   async acceptJob(p: { clubId: string }) {
     const s = need();

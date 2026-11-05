@@ -189,3 +189,24 @@ describe('IA de clubes y selecciones', () => {
     expect(Object.keys(s.international.caps).length).toBeGreaterThan(10);
   });
 });
+
+import { deadlineStep, deadlineView } from '../src/engine/aiClubs';
+import { careerView, playersDataView, teamDataView, worldView } from '../src/engine/dataHub';
+describe('día de cierre y Data Hub', () => {
+  it('el día de cierre avanza por horas hasta medianoche', () => {
+    const s = game();
+    s.date = s.calendar.windows[0]!.deadline;
+    expect(deadlineView(s)?.hour).toBe(9);
+    for (let i = 0; i < 10; i++) deadlineStep(s);
+    const v = deadlineView(s)!;
+    expect(v.done).toBe(true);
+    expect(v.hour).toBe(23);
+  });
+  it('las vistas del Data Hub y del mundo se generan', () => {
+    const s = game();
+    expect(teamDataView(s).leagueRows.length).toBeGreaterThan(0);
+    expect(playersDataView(s).leaders.goals).toBeDefined();
+    expect(worldView(s).clubs.length).toBeGreaterThan(0);
+    expect(careerView(s).clubs.length).toBe(1);
+  });
+});

@@ -116,9 +116,9 @@ function clubBuys(state: GameState, club: Club, pools: Pools, rng: ReturnType<ty
   return true;
 }
 
-function offerToUser(state: GameState, club: Club, p: Player, fee: number, rng: ReturnType<typeof createRng>): boolean {
+function offerToUser(state: GameState, club: Club, p: Player, fee: number, rng: ReturnType<typeof createRng>, force = false): boolean {
   if (state.transfers.deals.filter((d) => d.status === 'pendingUser').length >= 3) return false;
-  if (!rng.chance(0.35)) return false;
+  if (!force && !rng.chance(0.35)) return false;
   const price = roundMoney(fee * rng.float(0.8, 1.05));
   state.transfers.deals.unshift({
     id: `deal${(++state.transfers.seq).toString(36)}`, kind: 'transfer', playerId: p.id, buyerId: club.id, sellerId: state.userClubId,
@@ -162,6 +162,9 @@ export function aiClubsDay(state: GameState): void {
   const ix = indexes(state);
   const open = windowOpen(state);
   const deadline = state.calendar.windows.some((w) => w.deadline === state.date);
+  // El día de cierre se juega por horas desde la pantalla de fichajes; si ya se jugó, no se repite
+  if (deadline && state.deadline?.date === state.date && state.deadline.hour >= DEADLINE_END) return;
+  if (deadline && state.deadline?.date === state.date) { while (state.deadline.hour < DEADLINE_END) deadlineStep(state); return; }
   if (open) {
     const pools = buildPools(state);
     const rng = createRng(hashString(`ai:${state.seed}:${state.date}`));
@@ -266,4 +269,58 @@ export function replaceManager(state: GameState, club: Club, rng: ReturnType<typ
   state.news.unshift({ date: state.date, type: 'manager', text });
   if (sameLeague) addMessage(state, { type: 'news', priority: 'low', key: 'managerSacked', params: { text } });
   void ix;
+}
+
+// ---------------------------------------------------------------- día de cierre
+export const DEADLINE_START = 9;
+export const DEADLINE_END = 23;
+
+export interface DeadlineState { date: string; hour: number; feed: { hour: number; text: string }[] }
+
+/** Empieza el día de cierre (si toca hoy). */
+export function startDeadline(state: GameState): DeadlineState | null {
+  const today = state.calendar.windows.find((w) => w.deadline === state.date);
+  if (!today) return null;
+  if (state.deadline?.date !== state.date) state.deadline = { date: state.date, hour: DEADLINE_START, feed: [] };
+  return state.deadline;
+}
+
+/** Avanza dos horas del día de cierre: actúa una parte de los clubes y pueden llegar ofertas de última hora. */
+export function deadlineStep(state: GameState): DeadlineState {
+  const dl = startDeadline(state);
+  if (!dl) throw new Error('Hoy no es el día de cierre del mercado');
+  if (dl.hour >= DEADLINE_END) return dl;
+  const steps = (DEADLINE_END - DEADLINE_START) / 2;
+  const step = (dl.hour - DEADLINE_START) / 2;
+  const before = state.transfers.history.length;
+  const pools = buildPools(state);
+  const rng = createRng(hashString(`deadline:${state.seed}:${state.date}:${dl.hour}`));
+  for (const club of state.world.clubs) {
+    if (club.id === state.userClubId) continue;
+    if (hashString(`dl:${club.id}`) % steps !== step) continue;
+    for (let k = 0; k < 2; k++) if (!clubBuys(state, club, pools, rng, true)) break;
+    clubLoansOut(state, club, rng);
+  }
+  // Ofertas de última hora por jugadores del usuario
+  const user = squadOf(state, state.userClubId);
+  if (user.length && rng.chance(0.35)) {
+    const p = rng.pick(user.filter((x) => x.contract?.type !== 'loan' && !state.transfers.deals.some((d) => d.playerId === x.id && d.status === 'pendingUser')));
+    const buyer = p ? state.world.clubs.filter((c) => c.id !== state.userClubId && c.finances.transferBudget > p.marketValue && expectedRole(state, p, c.id) !== 'backup') : [];
+    if (p && buyer.length) { const b = rng.pick(buyer); offerToUser(state, b, p, askingPrice(state, p, b.id), rng, true); }
+  }
+  const ix = indexes(state);
+  const club = (id: string | null) => (id ? ix.clubs.get(id)?.name ?? '' : 'libre');
+  for (const h of state.transfers.history.slice(0, state.transfers.history.length - before).reverse()) {
+    dl.feed.unshift({ hour: dl.hour, text: `${h.name}: ${club(h.fromId)} → ${club(h.toId)} (${h.loan ? 'cedido' : h.fee ? (h.fee >= 1e6 ? `${(h.fee / 1e6).toFixed(1).replace('.', ',')} M€` : `${Math.round(h.fee / 1e3)} k€`) : 'libre'})` });
+  }
+  if (dl.feed.length > 120) dl.feed.length = 120;
+  dl.hour += 2;
+  return dl;
+}
+
+export function deadlineView(state: GameState) {
+  const today = state.calendar.windows.find((w) => w.deadline === state.date);
+  if (!today) return null;
+  const dl = state.deadline?.date === state.date ? state.deadline : { date: state.date, hour: DEADLINE_START, feed: [] };
+  return { ...dl, end: DEADLINE_END, done: dl.hour >= DEADLINE_END, pending: state.transfers.deals.filter((d) => d.status === 'pendingUser').length };
 }

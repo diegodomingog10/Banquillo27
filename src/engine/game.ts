@@ -29,7 +29,7 @@ import { initTraining, medicalDays, recoveryFactor, trainingDay, type TrainingSt
 import { initProgression, progressionDay, recordMinutes, seasonProgressReport, type ProgressionState } from './progression';
 import { dressingAfterMatch, dressingDay, initDressing, type DressingState } from './dressingRoom';
 import { retirements, seasonAwards, trimAiSquads, youthIntake, type SeasonAwards } from './seasonLife';
-import { aiClubsDay, type ManagerMove } from './aiClubs';
+import { aiClubsDay, type DeadlineState, type ManagerMove } from './aiClubs';
 import { initInternational, internationalDay, type InternationalState } from './international';
 import { afterContinentalFixture, aggregateFor, continentalDay, planContinental, qualifyContinental, roundName, type ContinentalState } from './continental';
 
@@ -191,6 +191,8 @@ export interface GameState {
   managerMoves: ManagerMove[];
   /** Carrera del entrenador del usuario. */
   career: Career;
+  /** Día de cierre del mercado en curso (por horas). */
+  deadline?: DeadlineState;
   seq: number;
 }
 
