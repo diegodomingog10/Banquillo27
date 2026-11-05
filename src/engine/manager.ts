@@ -5,6 +5,10 @@
 import { GROUP_OF_POSITION } from '../data/positions';
 import type { Player } from '../data/schema';
 import { indexes, type GameState } from './game';
+import { initEconomy } from './economy';
+import { initScouting } from './scouting';
+import { initTransfers } from './transfers';
+import { initBoard } from './board';
 import { autoLineup, isAvailable, slotScore, type Lineup } from './lineup';
 import { clamp } from './rng';
 import { FORMATIONS, type TeamTactic } from './tactics';
@@ -32,7 +36,7 @@ export const DEFAULT_UI: UiPrefs = {
 
 /** Completa campos añadidos en versiones posteriores (partidas antiguas). */
 export function ensureDefaults(state: GameState): GameState {
-  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity' | 'postMatch'>>;
+  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity' | 'postMatch' | 'economy' | 'scouting' | 'transfers' | 'board'>>;
   if (!s.ui) s.ui = structuredClone(DEFAULT_UI);
   for (const id of DASHBOARD_TILES) if (!s.ui.dashboard.some((t) => t.id === id)) s.ui.dashboard.push({ id, visible: true });
   s.ui.squadViews ??= [];
@@ -40,6 +44,11 @@ export function ensureDefaults(state: GameState): GameState {
   if (s.userLineup === undefined) s.userLineup = null;
   if (typeof s.tacticFamiliarity !== 'number') s.tacticFamiliarity = 75;
   if (s.postMatch === undefined) s.postMatch = null;
+  // Fase 6: economía, ojeo, mercado y directiva
+  if (!s.economy) initEconomy(state);
+  if (!s.scouting) initScouting(state);
+  if (!s.transfers) initTransfers(state);
+  if (!s.board) initBoard(state);
   return state;
 }
 

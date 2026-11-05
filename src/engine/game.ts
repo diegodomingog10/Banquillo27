@@ -21,6 +21,10 @@ import { computeStandings, type StandingRow } from './standings';
 import { FORMATIONS, FORMATION_IDS, tacticFromFormation, type Mentality, type TeamTactic } from './tactics';
 import { DEFAULT_UI, growFamiliarity, resolveUserLineup, type UiPrefs } from './manager';
 import { buildPostMatch, type PostMatchState } from './postMatch';
+import { cupPrize, economyDay, initEconomy, rolloverFinances, seasonEndFinances, seasonResult, type EconomyState } from './economy';
+import { initScouting, scoutingDay, type ScoutingState } from './scouting';
+import { initTransfers, rolloverContracts, transfersDay, type TransfersState } from './transfers';
+import { boardAfterMatch, boardDay, boardSeasonEnd, initBoard, type BoardState } from './board';
 
 export const GAME_STATE_VERSION = 1;
 
@@ -134,6 +138,14 @@ export interface GameState {
   /** Marcas de eventos ya procesados (idempotencia del bucle diario). */
   processed: Record<string, true>;
   pendingUserMatchId: string | null;
+  /** Economía de todos los clubes (libros, pagos aplazados, juego limpio financiero). */
+  economy: EconomyState;
+  /** Ojeo del club del usuario. */
+  scouting: ScoutingState;
+  /** Mercado: operaciones, cesiones, reventas, jugadores en venta. */
+  transfers: TransfersState;
+  /** Directiva del club del usuario. */
+  board: BoardState;
   seq: number;
 }
 
@@ -328,9 +340,17 @@ export function newGame(setup: NewGameSetup): GameState {
     lastPlayed: {},
     processed: {},
     pendingUserMatchId: null,
+    economy: null as unknown as EconomyState,
+    scouting: null as unknown as ScoutingState,
+    transfers: null as unknown as TransfersState,
+    board: null as unknown as BoardState,
     seq: 0,
   };
   setupSeason(state, startYear);
+  initEconomy(state);
+  initScouting(state);
+  initTransfers(state);
+  initBoard(state);
   state.userTactic = bestTacticFor(indexes(state).squads.get(club.id) ?? []);
   addMessage(state, {
     type: 'board', priority: 'urgent', key: 'welcome', sender: `Directiva de ${club.name}`,
@@ -441,7 +461,7 @@ export function continueGame(state: GameState, maxDays = 400): ContinueResult {
     stop, date: state.date, fixtureId, daysAdvanced: daysBetween(startDate, state.date),
     messageIds: state.inbox.filter((m) => !before.has(m.id)).map((m) => m.id),
   });
-  if (hasBlocking(state)) return result('blocking');
+  if (hasBlocking(state) || state.board?.fired) return result('blocking');
   if (state.pendingUserMatchId) {
     const f = indexes(state).fixtures.get(state.pendingUserMatchId);
     if (f && !f.played) return result('userMatch', f.id);
@@ -451,7 +471,7 @@ export function continueGame(state: GameState, maxDays = 400): ContinueResult {
     const stop = advanceDay(state);
     if (stop) return result(stop.reason, stop.fixtureId);
     const fresh = state.inbox.filter((m) => !before.has(m.id));
-    if (fresh.some((m) => m.blocking && !m.resolvedActionId)) return result('blocking');
+    if (fresh.some((m) => m.blocking && !m.resolvedActionId) || state.board.fired) return result('blocking');
     if (fresh.some((m) => STOP_PRIORITIES.has(m.priority))) return result('message');
   }
   return result('limit');
@@ -610,6 +630,7 @@ function playFixture(state: GameState, f: Fixture, detail: 'fast' | 'full', play
   if (f.homeId === state.userClubId || f.awayId === state.userClubId) {
     state.userMatches[f.id] = r.match;
     growFamiliarity(state, 2.5);
+    boardAfterMatch(state, f);
   }
   for (const p of suspendedBefore) p.cards.suspendedMatches = Math.max(0, p.cards.suspendedMatches - 1);
   applyPlayerResults(state, f, r, playedToday);
@@ -751,6 +772,7 @@ function afterFixture(state: GameState, f: Fixture): void {
     if (!cup) return;
     const loser = f.result.winnerId === f.homeId ? f.awayId : f.homeId;
     cup.alive = cup.alive.filter((c) => c !== loser);
+    if (f.result.winnerId) cupPrize(state, f.result.winnerId, f.round);
     if (loser === state.userClubId) {
       const comp = indexes(state).comps.get(f.competitionId);
       addMessage(state, {
@@ -894,6 +916,10 @@ function dailyUpdate(state: GameState, playedToday: Set<string>): void {
     // Moral: vuelve poco a poco a su nivel normal
     p.morale = p.morale + (60 - p.morale) * 0.01;
   }
+  economyDay(state);
+  scoutingDay(state);
+  transfersDay(state);
+  boardDay(state);
 }
 
 // ---------------------------------------------------------------- fin de temporada
@@ -932,6 +958,7 @@ function processSeasonEnd(state: GameState): void {
     }
   }
   state.pendingMoves = moves;
+  seasonEndFinances(state);
   // Mensaje al usuario
   const userLeague = leagueOf(state, state.userClubId);
   const club = ix.clubs.get(state.userClubId);
@@ -941,6 +968,9 @@ function processSeasonEnd(state: GameState): void {
     const main = club.boardObjectives.find((o) => o.competitionId === userLeague.id) ?? club.boardObjectives[0];
     const promoted = move?.to === userLeague.promotion?.upCompetitionId;
     const met = main ? objectiveMet(main, row?.position ?? 99, !!promoted) : true;
+    boardSeasonEnd(state, club.boardObjectives
+      .filter((o) => o.type !== 'cupRound')
+      .map((o) => ({ objective: o, met: o.type === 'balanceBudget' ? seasonResult(state, club.id) >= 0 || club.finances.balance > 0 : objectiveMet(o, row?.position ?? 99, !!promoted) })));
     addMessage(state, {
       type: 'board', priority: 'high', key: 'seasonEnd', sender: `Directiva de ${club.name}`,
       params: {
@@ -957,7 +987,13 @@ function processSeasonEnd(state: GameState): void {
 
 function rollover(state: GameState): void {
   const ix = indexes(state);
-  // Ascensos y descensos
+  // Ascensos y descensos (cambio de nivel: negativo = sube)
+  const levelChange = new Map<string, number>();
+  for (const m of state.pendingMoves) {
+    const a = ix.comps.get(m.from)?.level ?? 1;
+    const b = ix.comps.get(m.to)?.level ?? 1;
+    levelChange.set(m.clubId, b - a);
+  }
   for (const m of state.pendingMoves) {
     const from = ix.comps.get(m.from);
     const to = ix.comps.get(m.to);
@@ -969,7 +1005,6 @@ function rollover(state: GameState): void {
   // Estadísticas: la temporada pasa a la carrera; tarjetas a cero
   const nextYear = state.seasonYear + 1;
   const newStart = isoFromParts(nextYear, 7, 1);
-  let renewed = 0;
   for (const p of state.world.players) {
     if (p.seasonStats.length) {
       p.careerStats.push(...p.seasonStats);
@@ -977,13 +1012,10 @@ function rollover(state: GameState): void {
     }
     p.cards = { yellow: 0, red: 0, suspendedMatches: 0 };
     p.matchSharpness = clamp(p.matchSharpness * 0.6, 20, 100);
-    // Contratos vencidos: prórroga automática provisional (la negociación llega en la Fase 6)
-    if (p.contract && p.contract.expires < newStart) {
-      p.contract.expires = isoFromParts(nextYear + 2, 6, 30);
-      if (p.clubId === state.userClubId) renewed++;
-    }
   }
-  if (renewed) addMessage(state, { type: 'contract', priority: 'low', key: 'contractsAutoRenewed', params: { count: renewed } });
+  // Cesiones que terminan y contratos vencidos
+  rolloverContracts(state, newStart, nextYear);
+  rolloverFinances(state, levelChange);
   // Objetivos de la directiva para la nueva categoría
   for (const club of state.world.clubs) refreshObjectives(state, club);
   // Limpieza: se conserva el historial resumido, no los partidos
