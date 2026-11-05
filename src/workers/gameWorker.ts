@@ -31,6 +31,11 @@ let state: GameState | null = null;
 let live: { match: LiveMatch; fixtureId: string } | null = null;
 let autosave = true;
 
+/** Autoguardado tras responder: la interfaz no espera a la serialización. */
+function autosaveLater(s: GameState): void {
+  setTimeout(() => { void saveGame(s, { auto: true }).catch(() => undefined); }, 0);
+}
+
 function need(): GameState {
   if (!state) throw new Error('No hay ninguna partida cargada');
   return state;
@@ -64,7 +69,7 @@ export const api = {
     const s = need();
     live = null;
     const { fixture } = playUserMatch(s);
-    if (autosave) await saveGame(s, { auto: true }).catch(() => undefined);
+    if (autosave) autosaveLater(s);
     return { match: matchView(s, fixture.id), dashboard: dashboardView(s) };
   },
   /** Empieza (o retoma) el partido del usuario en directo. */
@@ -106,7 +111,7 @@ export const api = {
     const result = live.match.result();
     live = null;
     playUserMatch(s, result);
-    if (autosave) await saveGame(s, { auto: true }).catch(() => undefined);
+    if (autosave) autosaveLater(s);
     return { dashboard: dashboardView(s) };
   },
   async postMatch() {

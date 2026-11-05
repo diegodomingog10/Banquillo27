@@ -277,6 +277,50 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 
 **Pantallas nuevas**: Fichajes (buscar, seguimiento, operaciones, ojeadores, en venta y cesiones, historial), Finanzas y Directiva. La ficha del jugador muestra lo que sabes de él y permite ofertar, pedir cesión, renovar u ofrecerlo.
 
+## IA de clubes, torneos continentales, día de cierre y Data Hub (Fase 8)
+
+**Torneos continentales** (`src/engine/continental.ts`)
+- Copa de Campeones (martes) y Trofeo Continental (jueves).
+- Sorteo de grupos el 27 de agosto, con bombos por reputación y sin dos equipos del mismo país en un grupo si se puede.
+- Fase de grupos a ida y vuelta (seis jornadas, septiembre-diciembre); pasan los dos primeros.
+- Eliminatorias a doble partido: decide el global y, si hay empate, prórroga y penaltis en la vuelta. No hay valor doble de los goles fuera, como en el fútbol europeo actual.
+- Sorteo de cada ronda dos semanas antes: los primeros de grupo contra segundos de otro grupo (y de otro país si se puede); el segundo juega la ida en casa. Final a partido único en campo neutral.
+- Premios: por participar, por partido ganado o empatado, por ronda superada y por el título.
+- Las plazas de la temporada siguiente salen de la clasificación final de cada liga.
+- El motor admite el global de la ida en el contexto del partido.
+
+**IA de los clubes** (`src/engine/aiClubs.ts`)
+- **Fichajes:** cada club, cada pocos días de mercado, busca dónde le hace falta un jugador: puestos sin cubrir o un titular claramente por debajo del nivel del once.
+  - Ficha a quien mejore lo que tiene, con su presupuesto, su caja y su margen salarial.
+  - La filosofía cuenta: los clubes de cantera prefieren jóvenes; los nacionalistas, jugadores del país; los prudentes gastan menos.
+  - Los grandes compran a los mejores de los pequeños; los endeudados venden más barato.
+  - Como mucho tres llegadas por ventana, y ningún jugador se mueve otra vez en cinco meses.
+- **Cesiones:** los grandes ceden a jóvenes con futuro que no juegan a clubes de menor nivel.
+- **Renovaciones:** mes a mes renuevan a quienes cuentan (puesto en la plantilla, edad y potencial); el resto acaba libre.
+- **Entrenadores:** cada mes (octubre-abril), las directivas comparan su puesto con el esperado por reputación. Si van muy por debajo o en descenso, pueden despedir al entrenador y fichar a uno libre o ascender al segundo.
+- **Ofertas por tus jugadores:** siguen llegando a tu bandeja, ahora porque la IA los necesita de verdad.
+
+**Selecciones** (`src/engine/international.ts`)
+- En cada parón, cada país convoca a sus 23 mejores (3 porteros) y juega dos amistosos.
+- Los convocados vuelven cansados, más motivados y, a veces, lesionados. Se cuentan las internacionalidades y los goles.
+
+**Día de cierre del mercado**
+- El último día de cada ventana, la pantalla de Fichajes muestra un reloj de 09:00 a 23:00. Se avanza de dos en dos horas con las operaciones de todo el mundo en directo y ofertas de última hora por tus jugadores.
+- Si pulsas Continuar, el resto del día se resuelve solo.
+
+**Data Hub y Mundo** (`src/engine/dataHub.ts`)
+- **Data Hub:**
+  - Mi equipo: xG a favor y en contra por partido, tiros, posesión, goles − xG y puesto por diferencia de xG.
+  - Liga: estadísticas de todos los equipos.
+  - Mis jugadores: valores por 90 minutos con percentil frente a los de su posición en la liga, con un mínimo de 450 minutos.
+  - Líderes: goles, asistencias, xG, nota, mejor del partido y porterías a cero.
+- **Mundo:** rankings de clubes y de ligas (por el nivel medio de sus onces), cambios de entrenador, selecciones (más internacionales y amistosos), palmarés y Mi carrera (clubes, balance de victorias, empates y derrotas, y títulos).
+
+**Pulido**
+- El autoguardado tras cada partido se hace después de responder a la interfaz.
+- Índice de staff en caché.
+- Test de integración de cinco temporadas completas (`tests/integration.test.ts`) que comprueba atributos 1-20, CA/PA, condición, moral, dinero, tamaños de plantilla, calendario completo y ausencia de duplicados.
+
 ## Entrenamiento, progresión, vestuario y fin de temporada (Fase 7)
 
 **Entrenamiento** (`src/engine/training.ts`)
@@ -352,5 +396,5 @@ Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manage
 5. ✅ Pantalla de partido (2D, feed, estadísticas, ajustes, gritos) y post-partido.
 6. ✅ Fichajes, scouting, contratos, finanzas y directiva.
 7. ✅ Entrenamiento, lesiones, moral, progresión y fin de temporada.
-8. IA de clubes, copas y torneos continentales, día de cierre, Data Hub y pulido.
+8. ✅ IA de clubes, copas y torneos continentales, día de cierre, Data Hub y pulido.
 9. Conexión de la base de datos real: importar, convertir, verificar y calibrar.
