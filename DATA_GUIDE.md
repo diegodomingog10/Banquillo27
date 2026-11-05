@@ -120,6 +120,9 @@ La ficha del jugador muestra esos datos marcados como **dato estimado** (`*`).
 | short_name, city, founded | | |
 | reputation | 0-10000 | Si falta: 60 % / 33 % / 20 % de la reputación de la nación según división 1 / 2 / 3+. |
 | primary_color, secondary_color | `#rrggbb` | |
+| home_shirt, home_secondary, home_pattern, home_shorts | `#rrggbb` o nombre (rojo, azul, blanco, granate, celeste…) | Primera equipación. Diseño: liso, rayas, finas, aros/franjas, mitades, banda, mangas. Si falta, se usan primary/secondary. |
+| away_shirt, away_secondary, away_pattern, away_shorts | igual | Segunda equipación. Si falta, se deriva (aviso informativo). |
+| gk_shirt | igual | Camiseta del portero. Si falta, se elige un color que no choque. |
 | stadium, capacity, pitch_condition (0-100) | | Capacidad estimada por reputación. |
 | training_facilities, youth_facilities, youth_recruitment, junior_coaching | 1-20 | Estimadas por reputación. |
 | balance, transfer_budget, wage_budget (semanal), debt, revenue (anual) | € | Ingresos estimados con `2 M€ × e^(rep/1600)`. Presupuesto salarial estimado = suma de salarios × 1,1. |

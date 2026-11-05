@@ -8,6 +8,7 @@ import { game } from '../../store/gameClient';
 import { useGame } from '../../store/gameStore';
 import { Icon } from '../icons';
 import { Badge, Bar, Button, Card, cx, Dialog, Dots, Segmented, Tabs, toneFor, Toggle } from '../kit';
+import { FootballPitch, pitchPos } from '../pitch';
 import { FixtureRow } from './shared';
 
 type Phase = 'inPossession' | 'outOfPossession' | 'transition';
@@ -154,16 +155,11 @@ export function TacticsScreen() {
 
       <div className="flex flex-wrap items-start gap-[18px]">
         <section aria-label="Campo" className="max-w-[520px] flex-[1_1_440px] rounded-2xl border border-line bg-card p-4">
-          <div className="relative h-[620px] overflow-hidden rounded-xl border border-pitch-line bg-pitch">
-            <div className="absolute inset-x-0 top-1/2 border-t border-pitch-line" />
-            <div className="absolute left-1/2 top-1/2 h-[110px] w-[110px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-pitch-line" />
-            <div className="absolute inset-x-1/4 top-0 h-[86px] border border-t-0 border-pitch-line" />
-            <div className="absolute inset-x-1/4 bottom-0 h-[86px] border border-b-0 border-pitch-line" />
+          <FootballPitch orientation="vertical" className="!rounded-xl">
             {tactic.slots.map((s, i) => {
               const id = starting[i];
               const p = id ? byId.get(id) : undefined;
-              const top = 94 - s.x * 88;
-              const left = 8 + s.y * 84;
+              const { top, left } = pitchPos(0.03 + s.x * 0.9, 0.06 + s.y * 0.88, 'vertical');
               const on = i === slot;
               const roleLabel = t(`role.${s.role}`);
               const fit = p ? p.fit[i] ?? 0 : 0;
@@ -178,14 +174,14 @@ export function TacticsScreen() {
                     p && fit < 2.5 && !on && 'border-warn')}>
                     {t(`pos.${s.position}`)}
                   </span>
-                  <span className="max-w-[84px] truncate text-xs font-semibold text-text">{p ? p.shortName : '—'}</span>
-                  <span className="max-w-[84px] truncate text-[11px] text-muted" title={`${roleLabel} · ${t(`duty.${s.duty}`)}`}>{roleLabel}</span>
-                  <span className="text-[10px] text-faint">{t(`duty.${s.duty}`)}</span>
-                  {p && p.condition < 75 && <span className="text-[10px] text-warn">{p.condition}%</span>}
+                  <span className="max-w-[84px] truncate text-xs font-semibold text-white [text-shadow:0_1px_2px_#000]">{p ? p.shortName : '—'}</span>
+                  <span className="max-w-[84px] truncate text-[11px] text-white/85 [text-shadow:0_1px_2px_#000]" title={`${roleLabel} · ${t(`duty.${s.duty}`)}`}>{roleLabel}</span>
+                  <span className="text-[10px] text-white/70 [text-shadow:0_1px_2px_#000]">{t(`duty.${s.duty}`)}</span>
+                  {p && p.condition < 75 && <span className="rounded bg-black/55 px-1 text-[10px] text-warn">{p.condition}%</span>}
                 </button>
               );
             })}
-          </div>
+          </FootballPitch>
           <p className="mt-2.5 text-xs text-muted">Arrastra jugadores entre posiciones o desde la lista. También puedes elegir una posición y pulsar «Poner» en un jugador.</p>
         </section>
 

@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import { ALL_ATTRS, ABILITY_MAX, ABILITY_MIN, ATTR_MAX, ATTR_MIN, type AttrKey } from './attributes';
 import { POSITIONS } from './positions';
+import { Kits } from './kits';
 
 export const SCHEMA_VERSION = 1;
 
@@ -270,6 +271,8 @@ export const Club = z.object({
     primary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     secondary: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   }),
+  /** Equipaciones local, visitante y de portero. Si faltan, se derivan de `colors`. */
+  kits: Kits.optional(),
   founded: z.number().int().min(1800).max(2100).nullable().default(null),
   stadium: z.object({
     name: z.string().min(1),

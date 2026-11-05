@@ -51,6 +51,7 @@ import {
   type StatsMapping,
   type StatsPlayer,
 } from '../statsToAttributes';
+import { kitsOf, KIT_COLORS, type KitPattern, type Kits } from '../kits';
 import { annualRevenue, clubLevel, generateClubStaff, SQUAD_TEMPLATE, TIER_OFFSET, ageForTier } from '../generator/generateWorld';
 import { generateAttributes, generatePlayer } from '../generator/generatePlayer';
 import { NAME_STYLES } from '../generator/nameStyles';
@@ -128,6 +129,22 @@ export interface ImportResult {
 }
 
 // ---------------------------------------------------------------- internos
+const COLOR_NAMES: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(KIT_COLORS).map(([k, v]) => [normKey(k), v])),
+  red: KIT_COLORS.rojo!, maroon: KIT_COLORS.granate!, claret: KIT_COLORS.granate!, blue: KIT_COLORS.azul!, navy: KIT_COLORS.marino!, sky: KIT_COLORS.celeste!,
+  skyblue: KIT_COLORS.celeste!, white: KIT_COLORS.blanco!, black: KIT_COLORS.negro!, yellow: KIT_COLORS.amarillo!, green: KIT_COLORS.verde!,
+  orange: KIT_COLORS.naranja!, purple: KIT_COLORS.morado!, grey: KIT_COLORS.gris!, gray: KIT_COLORS.gris!, gold: KIT_COLORS.oro!, pink: KIT_COLORS.rosa!,
+};
+
+/** Color de equipación: hexadecimal (#rrggbb o rrggbb) o nombre en español o inglés. */
+export function kitColor(v: unknown): string | null {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  const t = v.trim();
+  const hex = t.startsWith('#') ? t : `#${t}`;
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex.toUpperCase();
+  return COLOR_NAMES[normKey(t)] ?? null;
+}
+
 interface Rec {
   file: string;
   row: number;
@@ -454,11 +471,30 @@ class Importer {
       if (transferBudget === undefined) estimated.push('finances.transferBudget');
       if (wageBudget === undefined) estimated.push('finances.wageBudget');
       if (balance === undefined) estimated.push('finances.balance');
-      const color = (v: unknown, def: string) => {
-        if (typeof v !== 'string') return def;
-        const s = v.trim().startsWith('#') ? v.trim() : `#${v.trim()}`;
-        return /^#[0-9a-fA-F]{6}$/.test(s) ? s : def;
+      const color = (v: unknown, def: string) => kitColor(v) ?? def;
+      const primaryRaw = () => kitColor(pick(rec.data, CLUB_FIELDS.primaryColor));
+      const secondaryRaw = () => kitColor(pick(rec.data, CLUB_FIELDS.secondaryColor));
+      const parseKits = (r: Rec, clubId: string, p: string | null, s2: string | null): Kits | undefined => {
+        const g = (f: readonly string[]) => kitColor(pick(r.data, f));
+        const pat = (f: readonly string[]): KitPattern => {
+          const v = normKey(String(pick(r.data, f) ?? ''));
+          const map: Record<string, KitPattern> = { stripes: 'stripes', rayas: 'stripes', hoops: 'hoops', aros: 'hoops', franjas: 'hoops', halves: 'halves', mitades: 'halves', sash: 'sash', banda: 'sash', sleeves: 'sleeves', mangas: 'sleeves', pinstripes: 'pinstripes', finas: 'pinstripes' };
+          return map[v] ?? 'plain';
+        };
+        const hs = g(CLUB_FIELDS.homeShirt) ?? p;
+        if (!hs) return undefined;
+        const base = kitsOf({ colors: { primary: hs, secondary: g(CLUB_FIELDS.homeSecondary) ?? s2 ?? '#F5F5F2' } });
+        const k: Kits = {
+          home: { ...base.home, secondary: g(CLUB_FIELDS.homeSecondary) ?? base.home.secondary, pattern: pat(CLUB_FIELDS.homePattern), shorts: g(CLUB_FIELDS.homeShorts) ?? base.home.shorts },
+          away: g(CLUB_FIELDS.awayShirt)
+            ? { shirt: g(CLUB_FIELDS.awayShirt)!, secondary: g(CLUB_FIELDS.awaySecondary) ?? hs, pattern: pat(CLUB_FIELDS.awayPattern), shorts: g(CLUB_FIELDS.awayShorts) ?? g(CLUB_FIELDS.awayShirt)!, socks: g(CLUB_FIELDS.awayShirt)! }
+            : base.away,
+          goalkeeper: g(CLUB_FIELDS.gkShirt) ? { ...base.goalkeeper, shirt: g(CLUB_FIELDS.gkShirt)!, shorts: g(CLUB_FIELDS.gkShirt)!, socks: g(CLUB_FIELDS.gkShirt)! } : base.goalkeeper,
+        };
+        if (!g(CLUB_FIELDS.awayShirt)) this.issue({ severity: 'info', file: r.file, row: r.row, entity: 'club', id: clubId, field: 'kits', message: 'sin equipación visitante: se deriva de los colores del club' });
+        return k;
       };
+      const kits = parseKits(rec, id, primaryRaw(), secondaryRaw());
       const city = String(pick(rec.data, CLUB_FIELDS.city) ?? name);
       if (!pick(rec.data, CLUB_FIELDS.city)) estimated.push('city');
 
@@ -469,7 +505,8 @@ class Importer {
         nationId,
         city,
         reputation,
-        colors: { primary: color(pick(rec.data, CLUB_FIELDS.primaryColor), '#1d428a'), secondary: color(pick(rec.data, CLUB_FIELDS.secondaryColor), '#ffffff') },
+        colors: { primary: kits?.home.shirt ?? color(pick(rec.data, CLUB_FIELDS.primaryColor), '#1d428a'), secondary: kits?.home.secondary ?? color(pick(rec.data, CLUB_FIELDS.secondaryColor), '#ffffff') },
+        kits,
         founded: this.field(rec, 'club', id, 'founded', () => parseInt0(pick(rec.data, CLUB_FIELDS.founded))) ?? null,
         stadium: {
           name: String(pick(rec.data, CLUB_FIELDS.stadiumName) ?? `Estadio de ${city}`),

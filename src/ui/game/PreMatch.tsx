@@ -5,6 +5,7 @@ import { useGame } from '../../store/gameStore';
 import { fmtDateLong } from '../format';
 import { Icon } from '../icons';
 import { Badge, Bar, Button, Card, FormBadge, toneFor } from '../kit';
+import { KitShirt } from '../pitch';
 import { PlayerLink } from './shared';
 
 type Pre = NonNullable<Awaited<ReturnType<typeof game<'preMatch'>>>>;
@@ -34,9 +35,9 @@ export function PreMatch() {
       <Card className="!p-7 text-center">
         <div className="text-xs uppercase tracking-[0.08em] text-muted first-letter:uppercase">{f.competitionName} · {f.roundLabel} · {fmtDateLong(f.date)}</div>
         <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-5">
-          <div className="text-right font-display text-2xl font-bold">{f.homeName}</div>
+          <div className="flex items-center justify-end gap-3 text-right font-display text-2xl font-bold">{f.homeName}<KitShirt kit={pre.kits.home} size={44} title={`Equipación de ${f.homeName}`} /></div>
           <div className="font-display text-xl font-extrabold text-faint">vs</div>
-          <div className="text-left font-display text-2xl font-bold">{f.awayName}</div>
+          <div className="flex items-center gap-3 text-left font-display text-2xl font-bold"><KitShirt kit={pre.kits.away} size={44} title={`Equipación de ${f.awayName}`} />{f.awayName}</div>
         </div>
         <div className="mt-1 text-[13px] text-muted">{f.homeId === pre.opponent.id ? pre.opponent.stadium : 'En casa'}</div>
         <div className="mt-5 flex flex-wrap justify-center gap-2.5">

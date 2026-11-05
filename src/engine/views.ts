@@ -3,6 +3,7 @@
  * Worker y se envían al hilo principal: así no viaja el estado completo).
  */
 import { mainPosition } from '../data/ability';
+import { matchKits, type MatchKits } from '../data/kits';
 import type { MatchEvent, Message, Player } from '../data/schema';
 import { ageAt } from './date';
 import { t } from '../i18n';
@@ -51,6 +52,8 @@ export interface DashboardView {
   manager: string;
   league: { id: string; name: string; position: number | null; rows: TableRowView[] } | null;
   next: FixtureView[];
+  /** Equipaciones del próximo partido. */
+  nextKits: MatchKits | null;
   last: FixtureView[];
   unread: number;
   blocking: boolean;
@@ -162,6 +165,7 @@ export function dashboardView(state: GameState): DashboardView {
     manager: `${state.manager.firstName} ${state.manager.lastName}`,
     league: league ? { id: league.id, name: league.name, position: rows.find((r) => r.clubId === club.id)?.position ?? null, rows } : null,
     next: mine.filter((f) => !f.played).slice(0, 5).map((f) => fixtureView(state, f, club.id)),
+    nextKits: (() => { const f = mine.find((x) => !x.played); const h = f && ix.clubs.get(f.homeId); const a = f && ix.clubs.get(f.awayId); return h && a ? matchKits(h, a) : null; })(),
     last: mine.filter((f) => f.played).slice(-5).reverse().map((f) => fixtureView(state, f, club.id)),
     unread: state.inbox.filter((m) => !m.read).length,
     blocking: hasBlocking(state),
@@ -315,6 +319,7 @@ export function preMatchView(state: GameState, fixtureId: string) {
   return {
     fixture: fixtureView(state, f, state.userClubId),
     opponent: { id: opp.id, name: opp.name, reputation: opp.reputation, stadium: opp.stadium.name },
+    kits: matchKits(ix.clubs.get(f.homeId)!, ix.clubs.get(f.awayId)!),
     userForm: recent(state.userClubId),
     opponentForm: recent(oppId),
     userPosition: table.find((r) => r.clubId === state.userClubId)?.position ?? null,

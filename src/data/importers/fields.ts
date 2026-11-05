@@ -210,6 +210,15 @@ export const CLUB_FIELDS = {
   revenue: ['revenue', 'annualrevenue', 'ingresos', 'ingresosanuales'],
   leagueId: ['leagueid', 'league', 'competitionid', 'liga', 'division', 'competicion'],
   rivals: ['rivals', 'rivales'],
+  homeShirt: ['kitshomeshirt', 'homeshirt', 'camisetalocal', 'equipacionlocal'],
+  homeSecondary: ['kitshomesecondary', 'homesecondary', 'secundariolocal'],
+  homePattern: ['kitshomepattern', 'homepattern', 'disenolocal'],
+  homeShorts: ['kitshomeshorts', 'homeshorts', 'pantalonlocal'],
+  awayShirt: ['kitsawayshirt', 'awayshirt', 'camisetavisitante', 'equipacionvisitante'],
+  awaySecondary: ['kitsawaysecondary', 'awaysecondary', 'secundariovisitante'],
+  awayPattern: ['kitsawaypattern', 'awaypattern', 'disenovisitante'],
+  awayShorts: ['kitsawayshorts', 'awayshorts', 'pantalonvisitante'],
+  gkShirt: ['kitsgoalkeepershirt', 'gkshirt', 'goalkeepershirt', 'camisetaportero'],
 } as const;
 
 export const COMPETITION_FIELDS = {

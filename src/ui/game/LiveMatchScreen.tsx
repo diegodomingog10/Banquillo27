@@ -7,6 +7,8 @@ import { t } from '../../i18n';
 import { game } from '../../store/gameClient';
 import { useGame } from '../../store/gameStore';
 import { Icon, type IconName } from '../icons';
+import type { MatchKits } from '../../data/kits';
+import { FootballPitch, kitAccent, KitDisc, KitShirt, pitchPos } from '../pitch';
 import { Badge, Bar, Button, Card, cx, ratingClass, Segmented, Tabs, Toggle } from '../kit';
 
 type Info = Awaited<ReturnType<typeof game<'liveStart'>>>;
@@ -129,8 +131,6 @@ export function LiveMatchScreen() {
   };
 
   if (error) return <Card><p className="text-sm text-bad" role="alert">{error}</p></Card>;
-  const homeColor = info?.home.primary ?? '#8B5CF6';
-  const awayColor = info ? kitFor(info.home.primary, info.away.primary, info.away.secondary) : '#ECEAF2';
   if (!info || !tick) return <p className="text-sm text-muted">Preparando el partido…</p>;
   const snap = tick.snapshot;
   const [home, away] = snap.teams;
@@ -138,6 +138,8 @@ export function LiveMatchScreen() {
   const minute = `${snap.minute}${snap.stoppage ? `+${snap.stoppage}` : ''}'`;
   const periodLabel = snap.finished ? 'Final' : snap.period === 1 ? '1.ª parte' : snap.period === 2 ? '2.ª parte' : 'Prórroga';
   const action = anim.actions[Math.min(anim.step, anim.actions.length - 1)];
+  const kits = info.kits;
+  const awayKitLabel = kits.awayKit === 'home' ? 'primera equipación' : kits.awayKit === 'away' ? 'segunda equipación' : 'equipación alternativa';
 
   return (
     <div className="flex flex-col gap-4">
@@ -145,14 +147,14 @@ export function LiveMatchScreen() {
       <Card className="flex flex-wrap items-center gap-4 !py-3">
         <div className="flex min-w-0 flex-1 items-center justify-end gap-3">
           <span className="truncate font-display text-xl font-bold">{info.home.name}</span>
-          <span className="h-6 w-6 shrink-0 rounded-md" style={{ background: info.home.primary }} aria-hidden="true" />
+          <KitShirt kit={kits.home} size={34} title={`${info.home.name}: primera equipación`} />
         </div>
         <div className="text-center">
           <div className="num rounded-xl bg-card2 px-5 py-1.5 font-display text-3xl font-extrabold" aria-live="polite">{home.goals} - {away.goals}</div>
           <div className="mt-1 text-xs text-muted"><span className="num font-semibold text-text">{minute}</span> · {periodLabel}{snap.penalties ? ` · pen. ${snap.penalties.home}-${snap.penalties.away}` : ''}</div>
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="h-6 w-6 shrink-0 rounded-md" style={{ background: awayColor }} aria-hidden="true" />
+          <KitShirt kit={kits.away} size={34} title={`${info.away.name}: ${awayKitLabel}`} />
           <span className="truncate font-display text-xl font-bold">{info.away.name}</span>
         </div>
       </Card>
@@ -185,7 +187,7 @@ export function LiveMatchScreen() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-4">
-          <Pitch teams={snap.teams} homeColor={homeColor} awayColor={awayColor} action={action} stepMs={anim.stepMs} flash={flash} cards={cards} />
+          <Pitch teams={snap.teams} kits={kits} action={action} stepMs={anim.stepMs} flash={flash} cards={cards} />
           <Card title="Comentarios" icon="news" padded>
             <ul className="flex max-h-64 flex-col gap-1.5 overflow-auto text-[13px]" aria-live="polite">
               {comments.map((c) => (
@@ -219,7 +221,7 @@ export function LiveMatchScreen() {
               </div>
             )}
           </Card>
-          <LiveStats home={home} away={away} homeColor={homeColor} heat={heat} userSide={info.userSide} />
+          <LiveStats home={home} away={away} homeColor={kitAccent(kits.home)} awayColor={kitAccent(kits.away)} heat={heat} userSide={info.userSide} />
         </div>
       </div>
     </div>
@@ -227,25 +229,9 @@ export function LiveMatchScreen() {
 }
 
 // ---------------------------------------------------------------- colores
-function rgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.replace('#', ''), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-function distance(a: string, b: string): number {
-  const [r1, g1, b1] = rgb(a);
-  const [r2, g2, b2] = rgb(b);
-  return Math.sqrt((r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2);
-}
-/** Equipación visitante que se distinga de la local (como el árbitro con las camisetas). */
-export function kitFor(home: string, awayPrimary: string, awaySecondary: string): string {
-  if (distance(home, awayPrimary) >= 110) return awayPrimary;
-  if (distance(home, awaySecondary) >= 110) return awaySecondary;
-  return distance(home, '#ECEAF2') >= 110 ? '#ECEAF2' : '#1D1D1D';
-}
-
 // ---------------------------------------------------------------- campo 2D
-function Pitch({ teams, homeColor, awayColor, action, stepMs, flash, cards }: {
-  teams: [LiveTeam, LiveTeam]; homeColor: string; awayColor: string; action: ReplayAction | undefined; stepMs: number; flash: Flash | null; cards: CardMark[];
+function Pitch({ teams, kits, action, stepMs, flash, cards }: {
+  teams: [LiveTeam, LiveTeam]; kits: MatchKits; action: ReplayAction | undefined; stepMs: number; flash: Flash | null; cards: CardMark[];
 }) {
   const ball = action ? { x: action.x2, y: action.y2 } : { x: 0.5, y: 0.5 };
   const attackSide = action?.side ?? 0;
@@ -263,7 +249,7 @@ function Pitch({ teams, homeColor, awayColor, action, stepMs, flash, cards }: {
           y += (ball.y - y) * (attacking ? 0.15 : 0.3);
         }
         if (action && (p.id === action.targetId || (!action.targetId && p.id === action.playerId))) { x = ball.x; y = ball.y; }
-        out.push({ p, side: side as 0 | 1, left: Math.min(0.97, Math.max(0.03, x)) * 100, top: Math.min(0.95, Math.max(0.05, y)) * 100 });
+        out.push({ p, side: side as 0 | 1, ...pitchPos(Math.min(0.99, Math.max(0.01, x)), Math.min(0.98, Math.max(0.02, y))) });
       }
     });
     return out;
@@ -271,28 +257,19 @@ function Pitch({ teams, homeColor, awayColor, action, stepMs, flash, cards }: {
   const dur = `${Math.min(900, stepMs)}ms`;
   const label = `Campo: ${teams[0].name} ${teams[0].goals}, ${teams[1].name} ${teams[1].goals}. ${action ? `Balón en poder de ${attackSide === 0 ? teams[0].name : teams[1].name}` : ''}`;
   return (
-    <div className="relative aspect-[105/68] w-full overflow-hidden rounded-2xl border border-pitch-line bg-pitch" role="img" aria-label={label}>
-      <div className="absolute inset-y-0 left-1/2 border-l border-pitch-line" />
-      <div className="absolute left-1/2 top-1/2 h-[26%] w-[17%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-pitch-line" />
-      <div className="absolute inset-y-[22%] left-0 w-[15%] border border-l-0 border-pitch-line" />
-      <div className="absolute inset-y-[22%] right-0 w-[15%] border border-r-0 border-pitch-line" />
-      <div className="absolute inset-y-[38%] left-0 w-[5%] border border-l-0 border-pitch-line" />
-      <div className="absolute inset-y-[38%] right-0 w-[5%] border border-r-0 border-pitch-line" />
+    <FootballPitch label={label} className="shadow-lg">
       {pos.map(({ p, side, left, top }) => {
         const card = cards.find((c) => c.playerId === p.id);
-        const color = side === 0 ? homeColor : awayColor;
+        const kit = side === 0 ? (p.isGk ? kits.homeGk : kits.home) : (p.isGk ? kits.awayGk : kits.away);
         return (
           <div key={p.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${left}%`, top: `${top}%`, transition: `left ${dur} ease-out, top ${dur} ease-out` }} title={`${p.fullName} · ${t(`pos.${p.position}`)} · ${p.condition}%`}>
-            <div className={cx('flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 text-[9px] font-bold text-white shadow', p.isGk && 'border-dashed')}
-              style={{ background: color, borderColor: side === 0 ? '#ECEAF2' : '#0E0C14' }}>
-              {p.position === 'GK' ? 'P' : ''}
-            </div>
-            <div className="pointer-events-none mt-0.5 w-20 -translate-x-[29px] truncate text-center text-[10px] font-medium text-[#D6D1E2]" style={{ textShadow: '0 1px 2px #000' }}>{p.name}</div>
+            <KitDisc kit={kit} size={22} label={p.isGk ? 'P' : ''} />
+            <div className="pointer-events-none mt-0.5 w-20 -translate-x-[29px] truncate text-center text-[10px] font-semibold text-white" style={{ textShadow: '0 1px 2px #000, 0 0 3px rgba(0,0,0,0.8)' }}>{p.name}</div>
             {card && <span className={cx('absolute -right-1 -top-2 h-3 w-2 rounded-[1px]', card.color === 'yellow' ? 'bg-warn' : 'bg-bad-strong')} aria-hidden="true" />}
           </div>
         );
       })}
-      <div className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2" style={{ left: `${ball.x * 100}%`, top: `${ball.y * 100}%`, transition: `left ${dur} linear, top ${dur} linear` }} aria-hidden="true">
+      <div className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2" style={{ left: `${pitchPos(ball.x, ball.y).left}%`, top: `${pitchPos(ball.x, ball.y).top}%`, transition: `left ${dur} linear, top ${dur} linear` }} aria-hidden="true">
         <div className="absolute left-1 top-2 h-1.5 w-3 rounded-full bg-black/50 blur-[1px]" />
         <div className="relative h-3 w-3 rounded-full border border-black/40 bg-white" />
       </div>
@@ -301,7 +278,7 @@ function Pitch({ teams, homeColor, awayColor, action, stepMs, flash, cards }: {
           <span className={cx('rounded-2xl px-8 py-3 font-display text-4xl font-extrabold text-white shadow-2xl', flash.tone === 'good' ? 'bg-good-strong/90' : flash.tone === 'bad' ? 'bg-bad-strong/90' : 'bg-raise/90')}>{flash.text}</span>
         </div>
       )}
-    </div>
+    </FootballPitch>
   );
 }
 
@@ -396,7 +373,7 @@ function TacticPanel({ team, advice, onMentality, onTweak }: { team: LiveTeam; a
   );
 }
 
-function LiveStats({ home, away, homeColor, heat, userSide }: { home: LiveTeam; away: LiveTeam; homeColor: string; heat: number[][]; userSide: 0 | 1 }) {
+function LiveStats({ home, away, homeColor, awayColor, heat, userSide }: { home: LiveTeam; away: LiveTeam; homeColor: string; awayColor: string; heat: number[][]; userSide: 0 | 1 }) {
   const [heatSide, setHeatSide] = useState<0 | 1>(userSide);
   const rows: [string, number, number, (v: number) => string][] = [
     ['Posesión', home.stats.possession, away.stats.possession, (v) => `${v}%`],
@@ -420,7 +397,7 @@ function LiveStats({ home, away, homeColor, heat, userSide }: { home: LiveTeam; 
             <tr key={label}>
               <td className="num w-12 py-1 text-right font-semibold">{f(h)}</td>
               <td className="px-3"><div className="text-center text-xs text-muted">{label}</div>
-                <div className="flex h-1.5 overflow-hidden rounded bg-[#3A3448]"><div style={{ width: `${pct}%`, background: homeColor }} /></div></td>
+                <div className="flex h-1.5 gap-px overflow-hidden rounded"><div style={{ width: `${pct}%`, background: homeColor }} /><div className="flex-1" style={{ background: awayColor }} /></div></td>
               <td className="num w-12 font-semibold">{f(a)}</td>
             </tr>
           );
@@ -430,9 +407,11 @@ function LiveStats({ home, away, homeColor, heat, userSide }: { home: LiveTeam; 
         <span className="flex-1 text-xs uppercase tracking-[0.08em] text-muted">Mapa de calor</span>
         <div className="w-44"><Segmented label="Equipo del mapa de calor" value={heatSide} onChange={setHeatSide} options={[{ value: 0, label: home.name.split(' ')[0] ?? 'Local' }, { value: 1, label: away.name.split(' ')[0] ?? 'Visitante' }]} /></div>
       </div>
-      <div className="mt-2 grid aspect-[105/68] grid-cols-8 gap-px overflow-hidden rounded-lg border border-pitch-line bg-pitch" role="img" aria-label={`Mapa de calor de ${heatSide === 0 ? home.name : away.name}`}>
-        {grid.map((v, i) => <div key={i} style={{ background: `rgba(167, 139, 250, ${Math.min(0.85, (v / max) * 0.85)})` }} />)}
-      </div>
+      <FootballPitch className="mt-2 !rounded-lg" label={`Mapa de calor de ${heatSide === 0 ? home.name : away.name}`}>
+        <div className="absolute grid grid-cols-8 grid-rows-5" style={{ left: `${pitchPos(0, 0).left}%`, top: `${pitchPos(0, 0).top}%`, right: `${pitchPos(0, 0).left}%`, bottom: `${pitchPos(0, 0).top}%` }}>
+          {grid.map((v, i) => <div key={i} style={{ background: `rgba(255, 196, 0, ${Math.min(0.75, (v / max) * 0.75)})`, mixBlendMode: 'screen' }} />)}
+        </div>
+      </FootballPitch>
       <p className="mt-1.5 text-[11px] text-faint">Dónde ha tenido el balón cada equipo (el local ataca hacia la derecha).</p>
     </Card>
   );

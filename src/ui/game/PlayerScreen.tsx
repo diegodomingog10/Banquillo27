@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FootballPitch, pitchPos } from '../pitch';
 import { ATTRIBUTE_GROUPS, type AttrKey } from '../../data/attributes';
 import type { PlayerProfile, SquadTableRow } from '../../engine/profileViews';
 import { t } from '../../i18n';
@@ -154,20 +155,19 @@ export function PlayerScreen() {
             </div>
           </Card>
           <Card title="Posiciones" icon="pin">
-            <div className="relative h-[150px] rounded-xl border border-pitch-line bg-pitch" role="img" aria-label={`Posiciones: ${p.positions.map((x) => `${t(`posLong.${x.position}`)} ${x.rating}`).join(', ')}`}>
-              <div className="absolute inset-y-0 left-1/2 border-l border-pitch-line" />
-              <div className="absolute left-1/2 top-1/2 h-11 w-11 -translate-x-1/2 -translate-y-1/2 rounded-full border border-pitch-line" />
+            <FootballPitch className="!rounded-xl" label={`Posiciones: ${p.positions.map((x) => `${t(`posLong.${x.position}`)} ${x.rating}`).join(', ')}`}>
               {p.positions.filter((x) => x.rating >= 8).map((x) => {
-                const [left, top] = PITCH[x.position] ?? [50, 50];
+                const [px, py] = PITCH[x.position] ?? [50, 50];
+                const { left, top } = pitchPos(px / 100, py / 100);
                 const nat = x.rating >= 18;
                 return (
-                  <span key={x.position} className={cx('absolute flex h-[26px] min-w-[34px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full px-1.5 text-[11px] font-bold', nat ? 'bg-accent text-white' : x.rating >= 13 ? 'bg-[#2E2545] text-[#DDD6FE]' : 'bg-line text-muted')}
+                  <span key={x.position} className={cx('absolute flex h-[26px] min-w-[34px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full px-1.5 text-[11px] font-bold', nat ? 'bg-accent text-white' : x.rating >= 13 ? 'bg-[#2E2545] text-[#DDD6FE] shadow' : 'bg-black/55 text-white/80')}
                     style={{ left: `${left}%`, top: `${top}%` }} title={`${t(`posLong.${x.position}`)}: ${x.rating}/20`}>
                     {t(`pos.${x.position}`)}
                   </span>
                 );
               })}
-            </div>
+            </FootballPitch>
           </Card>
         </div>
       </div>

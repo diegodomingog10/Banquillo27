@@ -3,6 +3,7 @@
  * Worker de partida: guarda el estado completo del juego y ejecuta el bucle de tiempo
  * y los partidos sin bloquear la interfaz. El hilo principal solo recibe vistas.
  */
+import { matchKits } from '../data/kits';
 import { generateWorld } from '../data/generator/generateWorld';
 import type { WorldDatabase } from '../data/schema';
 import { continueGame, markRead, newGame, playUserMatch, prepareUserMatch, resolveMessage, type GameState, type Manager } from '../engine/game';
@@ -68,6 +69,7 @@ export const api = {
       home: { id: home.id, name: home.name, primary: home.colors.primary, secondary: home.colors.secondary },
       away: { id: away.id, name: away.name, primary: away.colors.primary, secondary: away.colors.secondary },
       stadium: home.stadium.name,
+      kits: matchKits(home, away),
       tick: live.match.tick({ phases: 1 }),
     };
   },

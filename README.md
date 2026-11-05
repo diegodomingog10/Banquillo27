@@ -245,6 +245,12 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 - El partido en directo usa el mismo motor y queda guardado igual que uno simulado; con las mismas
   órdenes en los mismos momentos, el resultado es el mismo.
 
+## Campo y equipaciones
+
+- **Campo de césped** (`src/ui/pitch.tsx`): verde con franjas de corte y todas las marcas reglamentarias a escala (105 × 68 m: áreas, área pequeña, punto y semicírculo de penalti, círculo central, arcos de córner y porterías). Se usa en el partido en directo, la pizarra táctica (en vertical), el mapa de posiciones del jugador y el mapa de calor.
+- **Equipaciones** (`src/data/kits.ts`): cada club tiene primera, segunda y de portero (camiseta, color secundario, diseño —liso, rayas, finas, aros, mitades, banda, mangas—, pantalón y medias). En cada partido el local juega con la primera y el visitante cambia a la segunda si las camisetas se confunden, o a una alternativa blanca o negra si también choca. Los porteros se ajustan para no confundirse con nadie.
+- Se ven en el campo 2D (discos con el diseño de la camiseta), el marcador, la previa, el próximo partido del inicio y la ficha del club. Las bases de datos importadas pueden traer sus equipaciones (ver `DATA_GUIDE.md`); las antiguas se derivan de los colores del club.
+
 ## Decisiones de diseño (ambigüedades resueltas)
 
 Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manager:

@@ -24,6 +24,7 @@ import {
 import { CONTINENT, NATION_SEEDS, type NationSeed } from './nations';
 import { NAME_STYLES, cityName, fill, firstName, lastName, type NameStyle } from './nameStyles';
 import { generatePlayer } from './generatePlayer';
+import { generateKits } from '../kits';
 
 export interface WorldGenOptions {
   seed: number;
@@ -52,10 +53,6 @@ export const SQUAD_TEMPLATE: readonly [Position, Tier][] = [
   ['ST', 'starter'], ['ST', 'rotation'], ['ST', 'youth'],
 ];
 
-const COLORS = [
-  '#c8102e', '#1d428a', '#ffffff', '#000000', '#f2c200', '#006a4e', '#6cace4', '#7a263a',
-  '#ff6a13', '#4b2e83', '#00843d', '#a7a8aa', '#003087', '#e4002b', '#8a1538', '#ffd100',
-];
 const FORMATIONS = ['4-3-3', '4-2-3-1', '4-4-2', '3-5-2', '5-3-2', '3-4-3', '4-1-4-1', '4-4-1-1'];
 const PHILOSOPHIES: Club['philosophy'] = [
   'attackingFootball', 'possession', 'counterAttack', 'highPress', 'youthDevelopment',
@@ -152,9 +149,9 @@ function makeClub(
   const revenue = annualRevenue(reputation);
   const capacity = clamp(Math.round((4000 + reputation * 6.5 * rng.float(0.75, 1.25)) / 100) * 100, 1500, 99000);
   const ticketPrice = Math.round(10 + reputation / 250);
-  const primary = rng.pick(COLORS);
-  let secondary = rng.pick(COLORS);
-  if (secondary === primary) secondary = primary === '#ffffff' ? '#000000' : '#ffffff';
+  const kits = generateKits(rng);
+  const primary = kits.home.shirt;
+  const secondary = kits.home.secondary;
   const philosophy = rng.shuffle(PHILOSOPHIES).slice(0, rng.int(1, 3));
   const fac = (base: number) => clamp(Math.round(rng.normal(base, 2)), 1, 20);
   const facBase = 3 + (reputation / 10000) * 16;
@@ -167,6 +164,7 @@ function makeClub(
     city,
     reputation,
     colors: { primary, secondary },
+    kits,
     founded: rng.int(1870, 1990),
     stadium: {
       name: fill(rng.pick(style.stadiumPatterns), { c: city, s: lastName(rng, style) }),

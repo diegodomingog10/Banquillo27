@@ -4,6 +4,7 @@
  */
 import { mainPosition, POSITION_WEIGHTS } from '../data/ability';
 import { ALL_ATTRS, VISIBLE_ATTRS, type AttrKey, type VisibleAttr } from '../data/attributes';
+import { kitsOf } from '../data/kits';
 import { GROUP_OF_POSITION, type Position, type PositionGroup } from '../data/positions';
 import { bestRoleFor, ROLE_BY_ID, roleSuitability, rolesForPosition } from '../data/roles';
 import type { Player } from '../data/schema';
@@ -333,6 +334,7 @@ export function clubView(state: GameState, clubId: string) {
     founded: club.founded,
     reputation: club.reputation,
     colors: club.colors,
+    kits: kitsOf(club),
     league: league ? { id: league.id, name: league.name } : null,
     position: (() => { const r = league ? leagueTable(state, league.id).find((x) => x.clubId === clubId) : undefined; return r && r.played > 0 ? r.position : null; })(),
     stadium: club.stadium,

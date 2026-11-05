@@ -3,6 +3,7 @@ import { game } from '../../store/gameClient';
 import { useGame } from '../../store/gameStore';
 import { fmtDate, fmtShort } from '../format';
 import { Icon, type IconName } from '../icons';
+import { KitShirt } from '../pitch';
 import { Badge, Bar, Button, Card, Crest, cx, Empty, FormBadge, money, Stat, type Tone } from '../kit';
 import { LeagueTable } from './shared';
 
@@ -62,13 +63,13 @@ export function Dashboard() {
         <div className="text-xs uppercase tracking-[0.08em] text-muted">{d.pendingMatch ? 'Hoy' : fmtDate(next.date)} · {next.competitionName} · {next.roundLabel}</div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <div className="flex flex-col items-end gap-1.5 text-right">
-            <Crest color={nextHome ? d.club.primary : '#4C6A80'} size={48} />
+            {d.nextKits ? <KitShirt kit={d.nextKits.home} size={52} title={`Equipación de ${next.homeName}`} /> : <Crest color={d.club.primary} size={48} />}
             <div className="font-display text-xl font-bold">{next.homeName}</div>
             <div className="text-[13px] text-muted">{nextHome ? `${myRow?.position ?? '—'}.º · ${myRow?.points ?? 0} pts` : `${oppRow?.position ?? '—'}.º · ${oppRow?.points ?? 0} pts`}</div>
           </div>
           <div className="font-display text-xl font-extrabold text-faint">vs</div>
           <div className="flex flex-col gap-1.5">
-            <Crest color={nextHome ? '#4C6A80' : d.club.primary} size={48} />
+            {d.nextKits ? <KitShirt kit={d.nextKits.away} size={52} title={`Equipación de ${next.awayName}`} /> : <Crest color={d.club.primary} size={48} />}
             <div className="font-display text-xl font-bold">{next.awayName}</div>
             <div className="text-[13px] text-muted">{nextHome ? `${oppRow?.position ?? '—'}.º · ${oppRow?.points ?? 0} pts` : `${myRow?.position ?? '—'}.º · ${myRow?.points ?? 0} pts`}</div>
           </div>
