@@ -11,6 +11,7 @@ import { attrBarColor, attrClass, Badge, Bar, Button, Card, cx, Dialog, Dots, mo
 import { ClubLink } from './shared';
 import { CompareDialog } from './SquadScreen';
 import { ContractDialog, IncomingDialog, ListDialog, OfferDialog } from './market';
+import { TalkDialog } from './DressingScreen';
 
 const PITCH: Record<string, [number, number]> = {
   GK: [8, 50], LB: [26, 14], CB: [22, 50], RB: [26, 86], LWB: [40, 10], RWB: [40, 90], DM: [38, 50],
@@ -57,6 +58,7 @@ export function PlayerScreen() {
   const [contractDeal, setContractDeal] = useState<string | null>(null);
   const [incomingOpen, setIncomingOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [talkOpen, setTalkOpen] = useState(false);
   const id = nav.playerId;
   const load = () => { if (id) void game('player', { id }).then(setP); };
   useEffect(load, [id, dashboard?.date]);
@@ -121,7 +123,7 @@ export function PlayerScreen() {
           </div>
         </div>
         <div className="grid flex-[1_1_460px] grid-cols-2 gap-5 sm:grid-cols-5">
-          <Stat label="Nivel" value={<Dots value={p.caStars} />} hint="actual" />
+          <Stat label="Nivel" value={<Dots value={p.caStars} />} hint={p.seasonDelta ? <span className={p.seasonDelta > 0 ? 'text-good-text' : 'text-bad-text'}>{p.seasonDelta > 0 ? '▲' : '▼'} esta temporada</span> : 'actual'} />
           <Stat label="Potencial" value={<Dots value={p.paStars} variant="potential" />} hint="estimado" />
           <Stat label="Valor" value={money(p.value)} />
           <Stat label="Salario" value={p.wage ? money(p.wage) : '—'} hint={p.contractExpires ? `hasta ${fmtMonthYear(p.contractExpires)}` : 'sin contrato'} />
@@ -189,6 +191,7 @@ export function PlayerScreen() {
                       <span className={cx('num w-12 text-right font-bold', v === null ? 'text-faint' : attrClass(v))} title={v === null ? 'Desconocido' : err ? `Entre ${Math.max(1, v - err)} y ${Math.min(20, v + err)}` : undefined}>
                         {v === null ? '?' : err ? `${Math.max(1, v - err)}-${Math.min(20, v + err)}` : v}{v !== null && est.has(a) && '*'}
                       </span>
+                      <span className="w-3 text-[10px]" aria-label={p.changes[a] ? (p.changes[a]! > 0 ? 'ha mejorado' : 'ha bajado') : undefined}>{p.changes[a] ? (p.changes[a]! > 0 ? <span className="text-good-text">▲</span> : <span className="text-bad-text">▼</span>) : null}</span>
                     </div>
                   );
                 })}
@@ -237,6 +240,14 @@ export function PlayerScreen() {
                 <Bar value={pct as number} tone={tone as never} width="100%" label={label as string} />
               </div>
             ))}
+            {p.mood && (
+              <div className="border-t border-line pt-3 text-[13px]">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-soft"><span>Rol: <b className="text-text">{p.mood.role}</b></span><span>Juega el <b className="text-text">{p.mood.share} %</b> (espera {p.mood.expected} %)</span>{p.mood.leader && <Badge tone="warn">Líder</Badge>}</div>
+                {p.mood.concerns.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{p.mood.concerns.map((c) => <Badge key={c.kind} tone={c.level >= 3 ? 'bad' : c.level === 2 ? 'warn' : 'neutral'}>{c.label}</Badge>)}</div>}
+                {p.mood.promises.length > 0 && <p className="mt-2 text-xs text-muted">Promesa en curso hasta el {p.mood.promises[0]!.due}.</p>}
+                <Button size="sm" className="mt-3" icon="heart" onClick={() => setTalkOpen(true)}>Hablar con él</Button>
+              </div>
+            )}
           </div>
         </Card>
         <Card title="Informe del cuerpo técnico" icon="doc">
@@ -269,6 +280,7 @@ export function PlayerScreen() {
         player={{ id: p.id, name: p.name, value: p.value, asking: mk.asking, club: p.club?.name ?? null, free: mk.free }}
         onSent={(d) => { setOffer(null); load(); if (d.status === 'negotiating') setContractDeal(d.id); else setNotice(d.status === 'collapsed' ? d.log.at(-1)?.text ?? 'No hay acuerdo.' : 'Oferta enviada: el club responderá mañana.'); }} />}
       {listOpen && mk.kind === 'own' && <ListDialog open onClose={() => setListOpen(false)} onSaved={load} player={{ id: p.id, name: p.name, value: p.value, listed: mk.listed }} />}
+      <TalkDialog player={talkOpen ? { id: p.id, name: p.name } : null} onClose={() => { setTalkOpen(false); load(); }} />
       <ContractDialog dealId={contractDeal} onClose={() => { setContractDeal(null); load(); }} onDone={load} />
       <IncomingDialog deal={incomingOpen ? deal : null} onClose={() => setIncomingOpen(false)} onDone={load} />
       <Dialog open={pickOpen} onClose={() => setPickOpen(false)} title="Comparar con…" width={480}>

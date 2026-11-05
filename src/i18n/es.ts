@@ -296,6 +296,18 @@ export const es = {
     youthIntake: { subject: 'Llegan los nuevos canteranos', body: 'Se incorporan {count} juveniles a la cantera: {names}. Revisa su potencial en la pantalla de Entrenamiento.' },
   },
   intensity: { low: 'suave', normal: 'normal', high: 'intensa' },
+  staffRole: {
+    manager: 'Entrenador', assistantManager: 'Segundo entrenador', coach: 'Entrenador ayudante', goalkeepingCoach: 'Entrenador de porteros',
+    fitnessCoach: 'Preparador físico', scout: 'Ojeador', chiefScout: 'Jefe de ojeadores', physio: 'Fisioterapeuta', doctor: 'Médico',
+    analyst: 'Analista', youthCoach: 'Entrenador de la cantera', directorOfFootball: 'Director deportivo',
+  },
+  staffAttr: {
+    attacking: 'Ataque', defending: 'Defensa', tactical: 'Táctica', technical: 'Técnica', mentalCoaching: 'Mentalidad', fitness: 'Físico',
+    goalkeeping: 'Porteros', workingWithYouth: 'Trabajo con jóvenes', judgingAbility: 'Juzgar nivel', judgingPotential: 'Juzgar potencial',
+    negotiating: 'Negociación', physiotherapy: 'Fisioterapia', sportsScience: 'Ciencia deportiva', analysing: 'Análisis',
+    tacticalKnowledge: 'Conocimiento táctico', determination: 'Determinación', motivating: 'Motivación', manManagement: 'Gestión de grupo',
+    discipline: 'Disciplina', adaptability: 'Adaptabilidad',
+  },
   verdict: { met: 'Objetivo cumplido.', missed: 'Objetivo no cumplido.' },
   objective: {
     winLeague: 'ganar la liga',

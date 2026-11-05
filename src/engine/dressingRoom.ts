@@ -51,7 +51,20 @@ function squad(state: GameState): Player[] {
 }
 
 function h(state: GameState, id: string) {
-  return (state.dressing.happiness[id] ??= { concerns: [], share: 0.5, shortWeeks: 0 });
+  let x = state.dressing.happiness[id];
+  if (!x) {
+    // Empieza jugando lo que espera según su rol
+    const p = indexes(state).players.get(id);
+    x = state.dressing.happiness[id] = { concerns: [], share: p ? EXPECTED_SHARE[roleOf(state, p)] : 0.5, shortWeeks: 0 };
+  }
+  return x;
+}
+
+/** ¿Ha jugado el usuario algún partido en los últimos 8 días? */
+function playedRecently(state: GameState): boolean {
+  const me = state.userClubId;
+  const from = addDays(state.date, -8);
+  return state.fixtures.some((f) => f.played && f.date >= from && f.date <= state.date && (f.homeId === me || f.awayId === me));
 }
 
 export function roleOf(state: GameState, p: Player): SquadRole {
@@ -128,12 +141,15 @@ export function dressingDay(state: GameState): void {
   const sq = squad(state);
   const groups = socialGroups(state);
   const lead = new Set(leaders(state).map((p) => p.id));
+  const active = playedRecently(state);
   for (const p of sq) {
     const hh = h(state, p.id);
     const role = roleOf(state, p);
     // Minutos frente a lo esperado
-    if (!p.injury && hh.share < EXPECTED_SHARE[role] - 0.25) hh.shortWeeks++;
-    else hh.shortWeeks = Math.max(0, hh.shortWeeks - 1);
+    if (active) {
+      if (!p.injury && hh.share < EXPECTED_SHARE[role] - 0.25) hh.shortWeeks++;
+      else hh.shortWeeks = Math.max(0, hh.shortWeeks - 1);
+    }
     const pt = hh.concerns.find((c) => c.kind === 'playingTime');
     if (hh.shortWeeks >= 3 && ageAt(p.birthDate, state.date) >= 19) {
       const level = (hh.shortWeeks >= 8 ? 3 : hh.shortWeeks >= 5 ? 2 : 1) as 1 | 2 | 3;

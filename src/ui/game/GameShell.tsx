@@ -20,13 +20,16 @@ import { TacticsScreen } from './TacticsScreen';
 import { TransfersScreen } from './TransfersScreen';
 import { FinancesScreen } from './FinancesScreen';
 import { BoardScreen, FiredScreen } from './BoardScreen';
+import { TrainingScreen } from './TrainingScreen';
+import { DressingScreen } from './DressingScreen';
 
 const NAV: { id: GameScreen | null; label: string; icon: IconName; soon?: string }[] = [
   { id: 'dashboard', label: 'Inicio', icon: 'home' },
   { id: 'inbox', label: 'Bandeja', icon: 'inbox' },
   { id: 'squad', label: 'Plantilla', icon: 'squad' },
   { id: 'tactics', label: 'Tácticas', icon: 'tactics' },
-  { id: null, label: 'Entrenamiento', icon: 'training', soon: 'Fase 7' },
+  { id: 'dressing', label: 'Vestuario', icon: 'heart' },
+  { id: 'training', label: 'Entrenamiento', icon: 'training' },
   { id: 'transfers', label: 'Fichajes', icon: 'transfers' },
   { id: 'finances', label: 'Finanzas', icon: 'finance' },
   { id: 'competitions', label: 'Competiciones', icon: 'trophy' },
@@ -101,6 +104,7 @@ export function GameShell() {
     club: <ClubScreen />, player: <PlayerScreen />, prematch: <PreMatch />, match: <MatchReport />,
     live: <LiveMatchScreen />, postmatch: <PostMatchScreen />,
     transfers: <TransfersScreen />, finances: <FinancesScreen />, board: <BoardScreen />,
+    training: <TrainingScreen />, dressing: <DressingScreen />,
   }[nav.screen];
 
   return (

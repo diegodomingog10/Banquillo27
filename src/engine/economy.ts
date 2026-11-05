@@ -6,7 +6,7 @@
  * Ritmo: taquilla en cada partido en casa, salarios cada lunes, ingresos y gastos fijos
  * el día 1 de cada mes y premios al final de la temporada (y al pasar rondas de copa).
  */
-import type { Club } from '../data/schema';
+import type { Club, Staff } from '../data/schema';
 import { roundMoney } from '../data/ability';
 import { weekday } from './calendar';
 import { addDays } from './date';
@@ -73,10 +73,21 @@ export function playerWageBill(state: GameState, clubId: string): number {
   return (indexes(state).squads.get(clubId) ?? []).reduce((a, p) => a + (p.contract?.wage ?? 0), 0);
 }
 
+const STAFF_INDEX = new WeakMap<object, Map<string, Staff>>();
+/** Índice del staff por id (se rehace solo si cambia la lista). */
+export function staffById(state: GameState): Map<string, Staff> {
+  let m = STAFF_INDEX.get(state.world.staff);
+  if (!m || m.size !== state.world.staff.length) {
+    m = new Map(state.world.staff.map((s) => [s.id, s]));
+    STAFF_INDEX.set(state.world.staff, m);
+  }
+  return m;
+}
+
 export function staffWageBill(state: GameState, clubId: string): number {
   const club = indexes(state).clubs.get(clubId);
   if (!club) return 0;
-  const staff = new Map(state.world.staff.map((s) => [s.id, s]));
+  const staff = staffById(state);
   return club.staffIds.reduce((a, id) => a + (staff.get(id)?.contract?.wage ?? 0), 0);
 }
 

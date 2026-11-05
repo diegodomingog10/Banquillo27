@@ -16,6 +16,8 @@ import { resolveUserLineup } from './manager';
 import { fixtureView } from './views';
 import { knowledgeOf, recommendation, scoutedAbility, scoutedAttributes } from './scouting';
 import { askingPrice, playerInterest, ROLE_LABEL, windowOpen, dealView } from './transfers';
+import { playerMood } from './dressingRoom';
+import { recentChanges, seasonDelta } from './progression';
 
 const nameOf = (p: Player) => p.commonName ?? `${p.firstName} ${p.lastName}`;
 
@@ -149,6 +151,9 @@ export function playerProfile(state: GameState, playerId: string) {
     },
     deal: deal ? dealView(state, deal) : null,
     reportPending: state.scouting.requests.some((r) => r.playerId === p.id),
+    mood: isUser ? playerMood(state, p) : null,
+    changes: isUser ? Object.fromEntries(recentChanges(state, p.id, 60).map((c) => [c.attr, c.delta])) as Record<string, number> : {},
+    seasonDelta: isUser ? seasonDelta(state, p) : null,
     shortlisted: state.ui.shortlist.includes(p.id),
     positions: p.positions.map((x) => ({ position: x.position, rating: x.rating })).sort((a, b) => b.rating - a.rating),
     mainPosition: mainPosition(p.positions),
@@ -326,6 +331,8 @@ const SCREENS: { id: string; label: string; keywords: string }[] = [
   { id: 'club', label: 'Club', keywords: 'club estadio instalaciones equipaciones' },
   { id: 'transfers', label: 'Fichajes', keywords: 'fichajes mercado traspasos ojeadores scouting cesiones' },
   { id: 'finances', label: 'Finanzas', keywords: 'finanzas dinero presupuesto salarios ingresos gastos' },
+  { id: 'training', label: 'Entrenamiento', keywords: 'entrenamiento plan carga lesiones medico cantera juveniles staff tecnico' },
+  { id: 'dressing', label: 'Vestuario', keywords: 'vestuario moral promesas reunion lideres grupos' },
   { id: 'board', label: 'Directiva', keywords: 'directiva confianza objetivos peticiones' },
 ];
 

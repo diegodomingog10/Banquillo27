@@ -12,6 +12,7 @@ import { t } from '../i18n';
 import { ageAt } from './date';
 import { addMessage, indexes, type GameState } from './game';
 import { clamp, createRng, hashString } from './rng';
+import { staffById } from './economy';
 
 export const TRAINING_AREAS = ['tactical', 'technical', 'physical', 'setPieces', 'goalkeeping'] as const;
 export type TrainingArea = (typeof TRAINING_AREAS)[number];
@@ -78,8 +79,8 @@ export function planFor(state: GameState, clubId: string): TrainingPlan {
 }
 
 function clubStaff(state: GameState, club: Club): Staff[] {
-  const ids = new Set(club.staffIds);
-  return state.world.staff.filter((s) => ids.has(s.id));
+  const idx = staffById(state);
+  return club.staffIds.map((id) => idx.get(id)).filter((s): s is Staff => !!s);
 }
 
 const COACH_ROLES = new Set(['manager', 'assistantManager', 'coach', 'goalkeepingCoach', 'fitnessCoach', 'youthCoach']);

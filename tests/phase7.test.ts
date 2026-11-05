@@ -85,13 +85,15 @@ describe('vestuario', () => {
     s.dressing.happiness[p.id] = { concerns: [], share: 0, shortWeeks: 0 };
     let d = s.date;
     while (new Date(`${d}T00:00:00Z`).getUTCDay() !== 1) d = addDays(d, 1);
-    for (let i = 0; i < 6; i++) { s.date = addDays(d, 7 * i); dressingDay(s); }
+    const opp = s.world.clubs.find((c) => c.id !== s.userClubId)!.id;
+    const played = (date: string) => s.fixtures.push({ id: `fx${date}`, competitionId: 'x', season: s.season, round: 'md:1', stage: 'league', date: addDays(date, -2), homeId: s.userClubId, awayId: opp, played: true, decideWinner: false, result: { homeGoals: 1, awayGoals: 0, extraTime: false, penalties: null, winnerId: null }, summary: null });
+    for (let i = 0; i < 6; i++) { s.date = addDays(d, 7 * i); played(s.date); dressingDay(s); }
     expect(playerMood(s, p).concerns.some((c) => c.kind === 'playingTime')).toBe(true);
     const r = talkToPlayer(s, p.id, 'promiseTime');
     expect(r.result).toBe('good');
     expect(() => talkToPlayer(s, p.id, 'praise')).toThrow();
     const m0 = p.morale;
-    for (let i = 6; i < 14; i++) { s.date = addDays(d, 7 * i); dressingDay(s); }
+    for (let i = 6; i < 14; i++) { s.date = addDays(d, 7 * i); played(s.date); dressingDay(s); }
     expect(s.dressing.promises.find((x) => x.playerId === p.id)?.status).toBe('broken');
     expect(p.morale).toBeLessThan(m0);
   });
@@ -125,8 +127,9 @@ describe('fin de temporada', () => {
     expect(s.youthIntake?.ids.length).toBeGreaterThan(0);
   });
   it('las partidas antiguas reciben los sistemas de la Fase 7', () => {
-    const s = game() as GameState & Record<string, unknown>;
-    delete s.training; delete s.progression; delete s.dressing; delete s.awards;
+    const s = game();
+    const raw = s as unknown as Record<string, unknown>;
+    delete raw.training; delete raw.progression; delete raw.dressing; delete raw.awards;
     ensureDefaults(s);
     expect(s.training.plan.intensity).toBe('normal');
     expect(Array.isArray(s.awards)).toBe(true);

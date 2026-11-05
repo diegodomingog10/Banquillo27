@@ -277,6 +277,36 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 
 **Pantallas nuevas**: Fichajes (buscar, seguimiento, operaciones, ojeadores, en venta y cesiones, historial), Finanzas y Directiva. La ficha del jugador muestra lo que sabes de él y permite ofertar, pedir cesión, renovar u ofrecerlo.
 
+## Entrenamiento, progresión, vestuario y fin de temporada (Fase 7)
+
+**Entrenamiento** (`src/engine/training.ts`)
+- Plan semanal con peso por área (táctico, técnico, físico, balón parado, porteros), plantillas (equilibrado, pretemporada, táctico, técnico, recuperación) e intensidad suave, normal o intensa.
+- La intensidad cambia la progresión (±15 %), la recuperación física (±18 %) y el riesgo de lesión en los entrenamientos (de la mitad al doble). El trabajo táctico acelera la familiaridad con el sistema.
+- Entrenamiento individual: foco en un grupo de atributos (definición, creación, defensa, juego aéreo, físico, mentalidad, balón parado, portería) o aprendizaje de una posición nueva, que depende de la versatilidad y lleva meses.
+- La calidad de cada área sale de los dos mejores entrenadores en ella. Fisios y médicos reducen el riesgo y acortan las bajas, también las de los partidos.
+- Consejos del cuerpo técnico: quién necesita descanso, quién tiene riesgo alto y a quién le falta ritmo.
+
+**Progresión** (`src/engine/progression.ts`)
+- Cada lunes, para todos los jugadores del mundo. El crecimiento depende de la edad (mucho hasta los 21, poco desde los 25), el margen hasta el potencial, los minutos recientes, el entrenamiento, las instalaciones y la personalidad (profesionalidad y determinación).
+- Desde los 30 hay declive: los físicos caen primero, los técnicos más despacio y los mentales aguantan o mejoran. La profesionalidad y la forma natural lo frenan.
+- Los atributos son enteros: el avance se acumula hasta sumar un punto. La ficha marca con ▲/▼ los cambios recientes.
+- Informe mensual del cuerpo técnico y balance al final de la temporada. El valor de mercado se recalcula cada mes.
+- Calibrado con cinco temporadas simuladas: el nivel medio sube menos de un punto por temporada y el número de jugadores se estabiliza.
+
+**Vestuario** (`src/engine/dressingRoom.ts`)
+- Cada jugador espera unos minutos según su rol (estrella 85 %, importante 65 %, rotación 40 %, suplente 15 %, promesa 8 %).
+- Preocupaciones: minutos, contrato que vence, traspaso frustrado, promesa incumplida y conflicto contigo (si la preocupación es grave y el carácter, difícil). Bajan la moral cada semana.
+- Promesas con plazo (seis semanas para los minutos). Cumplirlas sube la moral; incumplirlas la hunde y, si es un líder, afecta a todo el vestuario.
+- Líderes (liderazgo, veteranía, minutos) y grupos sociales (jóvenes y veteranos de la casa, grupos por país). Un líder descontento contagia a su grupo.
+- Conversaciones individuales (felicitar, exigir, prometer minutos, explicar su papel, dejarle salir, hacer las paces): el resultado depende del carácter. Reuniones de equipo cada dos semanas, cuyo efecto depende de la racha.
+
+**Fin de temporada** (`src/engine/seasonLife.ts`)
+- Premios por liga: mejor jugador, máximo goleador, mejor joven, mejor portero y once ideal. Se ven en Competiciones.
+- Retiradas (desde los 33 años, más probables sin equipo o con poco nivel). Los agentes libres que no encuentran equipo acaban dejando el fútbol profesional.
+- Nueva generación de canteranos (15-17 años) en todos los clubes. La calidad depende de las instalaciones de la cantera, la captación y la formación; de vez en cuando sale una joya. La IA recorta plantillas de más de 27 jugadores.
+
+**Pantallas nuevas**: Entrenamiento (plan, individual, centro médico, cantera y cuerpo técnico) y Vestuario. La ficha del jugador muestra su rol, sus minutos frente a los esperados y sus preocupaciones, y permite hablar con él.
+
 ## Campo y equipaciones
 
 - **Campo de césped** (`src/ui/pitch.tsx`): verde con franjas de corte y todas las marcas reglamentarias a escala (105 × 68 m: áreas, área pequeña, punto y semicírculo de penalti, círculo central, arcos de córner y porterías). Se usa en el partido en directo, la pizarra táctica (en vertical), el mapa de posiciones del jugador y el mapa de calor.
@@ -321,6 +351,6 @@ Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manage
 4. ✅ Interfaz base (menú, panel, plantilla, perfil) y tácticas.
 5. ✅ Pantalla de partido (2D, feed, estadísticas, ajustes, gritos) y post-partido.
 6. ✅ Fichajes, scouting, contratos, finanzas y directiva.
-7. Entrenamiento, lesiones, moral, progresión y fin de temporada.
+7. ✅ Entrenamiento, lesiones, moral, progresión y fin de temporada.
 8. IA de clubes, copas y torneos continentales, día de cierre, Data Hub y pulido.
 9. Conexión de la base de datos real: importar, convertir, verificar y calibrar.

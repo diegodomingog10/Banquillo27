@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { t } from '../../i18n';
 import { game } from '../../store/gameClient';
 import { useGame } from '../../store/gameStore';
 import { Badge, Card, Empty } from '../kit';
-import { FixtureRow, LeagueTable } from './shared';
+import { FixtureRow, LeagueTable, PlayerLink } from './shared';
 
 type CompList = Awaited<ReturnType<typeof game<'competitions'>>>;
 type CompView = NonNullable<Awaited<ReturnType<typeof game<'competition'>>>>;
@@ -24,6 +25,9 @@ export function Competitions() {
       }
     });
   }, [id, dashboard?.date]);
+  const [awards, setAwards] = useState<Awaited<ReturnType<typeof game<'awards'>>>>([]);
+  useEffect(() => { void game('awards').then(setAwards); }, [dashboard?.season]);
+  const aw = awards.filter((x) => x.competitionId === id);
   const r = view?.rounds.find((x) => x.key === round);
   const idx = view?.rounds.findIndex((x) => x.key === round) ?? -1;
   return (
@@ -50,6 +54,20 @@ export function Competitions() {
             : <Empty>Sin partidos todavía (las rondas de copa aparecen tras su sorteo).</Empty>}
         </Card>
       </div>
+      {aw.length > 0 && (
+        <Card title={`Premios · temporada ${aw[0]!.season}`} icon="star" actions={aw.length > 1 ? <span className="text-xs text-muted">Anteriores: {aw.slice(1, 4).map((x) => `${x.season} ${x.playerOfSeason?.name ?? ''}`).join(' · ')}</span> : undefined}>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {([['Mejor jugador', aw[0]!.playerOfSeason], ['Máximo goleador', aw[0]!.topScorer], ['Mejor joven', aw[0]!.young], ['Mejor portero', aw[0]!.goalkeeper]] as const).map(([label, w]) => (
+              <div key={label} className="rounded-xl border border-line bg-card2 px-4 py-3 text-[13px]">
+                <div className="text-xs uppercase tracking-[0.08em] text-muted">{label}</div>
+                {w && w.id ? <><div className="mt-1 font-semibold"><PlayerLink id={w.id} name={w.name ?? ''} /></div><div className="text-xs text-muted">{w.club}{'goals' in w ? ` · ${w.goals} goles` : ''}</div></> : <div className="mt-1 text-muted">—</div>}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 text-xs uppercase tracking-[0.08em] text-muted">Once ideal</div>
+          <div className="mt-1.5 flex flex-wrap gap-2 text-[13px]">{aw[0]!.team.map((p) => p && <span key={p.id} className="rounded-lg border border-line2 px-2 py-1"><Badge tone="accent">{t(`pos.${p.position}`)}</Badge> <PlayerLink id={p.id} name={p.name} /></span>)}</div>
+        </Card>
+      )}
     </div>
   );
 }

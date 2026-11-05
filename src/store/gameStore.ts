@@ -3,7 +3,7 @@ import type { WorldDatabase } from '../data/schema';
 import type { DashboardView } from '../engine/views';
 
 export type Screen = 'home' | 'newGame' | 'generate' | 'import' | 'browse' | 'options';
-export type GameScreen = 'dashboard' | 'inbox' | 'squad' | 'tactics' | 'competitions' | 'club' | 'player' | 'prematch' | 'match' | 'live' | 'postmatch' | 'transfers' | 'finances' | 'board';
+export type GameScreen = 'dashboard' | 'inbox' | 'squad' | 'tactics' | 'competitions' | 'club' | 'player' | 'prematch' | 'match' | 'live' | 'postmatch' | 'transfers' | 'finances' | 'board' | 'training' | 'dressing';
 
 interface Nav {
   screen: GameScreen;

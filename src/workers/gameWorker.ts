@@ -19,6 +19,10 @@ import { assignScout, requestReport, scoutingView, type ScoutAssignment } from '
 import { acceptCounter, dealView, exerciseBuyOption, makeOffer, playerDemands, proposeContract, respondIncoming, setListed, startRenewal, transfersView, withdrawDeal, type ContractTerms, type OfferTerms } from '../engine/transfers';
 import { acceptJob, boardRequest, boardView, type BoardRequestKind } from '../engine/board';
 import { marketSearch, type MarketFilter } from '../engine/market';
+import { setIndividualTraining, setTrainingPlan, type IndividualFocus, type TrainingPlan } from '../engine/training';
+import { dressingView, talkToPlayer, teamMeeting, type PlayerTalk, type TeamTalk } from '../engine/dressingRoom';
+import { awardsView, trainingView } from '../engine/clubLifeViews';
+import type { Position } from '../data/positions';
 import { deleteSave, deserializeGame, listSaves, loadGame, saveGame, serializeGame } from '../store/saves';
 
 let state: GameState | null = null;
@@ -170,6 +174,14 @@ export const api = {
   async setListed(p: { playerId: string; listing: { asking: number | null; loan: boolean } | null }) { setListed(need(), p.playerId, p.listing); return true; },
   async exerciseOption(p: { playerId: string }) { exerciseBuyOption(need(), p.playerId); return dashboardView(need()); },
   async board() { return boardView(need()); },
+  // ---------------------------------------------------------------- Fase 7
+  async training() { return trainingView(need()); },
+  async setTrainingPlan(p: { plan: TrainingPlan }) { setTrainingPlan(need(), p.plan); return trainingView(need()); },
+  async setIndividualTraining(p: { playerId: string; focus: IndividualFocus; position: Position | null }) { setIndividualTraining(need(), p.playerId, p.focus, p.position); return trainingView(need()); },
+  async dressing() { return dressingView(need()); },
+  async talkToPlayer(p: { playerId: string; talk: PlayerTalk }) { return talkToPlayer(need(), p.playerId, p.talk); },
+  async teamMeeting(p: { talk: TeamTalk }) { return { ...teamMeeting(need(), p.talk), view: dressingView(need()) }; },
+  async awards() { return awardsView(need()); },
   async boardRequest(p: { kind: BoardRequestKind }) { return { ...boardRequest(need(), p.kind), view: boardView(need()) }; },
   async acceptJob(p: { clubId: string }) {
     const s = need();
