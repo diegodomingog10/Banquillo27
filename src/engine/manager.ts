@@ -9,6 +9,9 @@ import { initEconomy } from './economy';
 import { initScouting } from './scouting';
 import { initTransfers } from './transfers';
 import { initBoard } from './board';
+import { initTraining } from './training';
+import { initDressing } from './dressingRoom';
+import { initProgression } from './progression';
 import { autoLineup, isAvailable, slotScore, type Lineup } from './lineup';
 import { clamp } from './rng';
 import { FORMATIONS, type TeamTactic } from './tactics';
@@ -36,7 +39,7 @@ export const DEFAULT_UI: UiPrefs = {
 
 /** Completa campos añadidos en versiones posteriores (partidas antiguas). */
 export function ensureDefaults(state: GameState): GameState {
-  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity' | 'postMatch' | 'economy' | 'scouting' | 'transfers' | 'board'>>;
+  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity' | 'postMatch' | 'economy' | 'scouting' | 'transfers' | 'board' | 'training' | 'dressing' | 'progression' | 'awards' | 'youthIntake'>>;
   if (!s.ui) s.ui = structuredClone(DEFAULT_UI);
   for (const id of DASHBOARD_TILES) if (!s.ui.dashboard.some((t) => t.id === id)) s.ui.dashboard.push({ id, visible: true });
   s.ui.squadViews ??= [];
@@ -49,6 +52,12 @@ export function ensureDefaults(state: GameState): GameState {
   if (!s.scouting) initScouting(state);
   if (!s.transfers) initTransfers(state);
   if (!s.board) initBoard(state);
+  // Fase 7: entrenamiento, progresión, vestuario, premios y cantera
+  if (!s.training) initTraining(state);
+  if (!s.dressing) initDressing(state);
+  if (!s.progression) initProgression(state);
+  s.awards ??= [];
+  if (s.youthIntake === undefined) s.youthIntake = null;
   return state;
 }
 

@@ -13,6 +13,7 @@ import { addDays, ageAt, isoFromParts, yearsBetween } from './date';
 import { credit, debit, payTransferFee, schedulePayment, transferCash, transferEmbargo, playerWageBill } from './economy';
 import { addMessage, indexes, invalidate, leagueOf, type GameState } from './game';
 import { clamp, createRng, hashString } from './rng';
+import { addConcern } from './dressingRoom';
 
 export const SQUAD_ROLES = ['star', 'important', 'rotation', 'backup', 'youth'] as const;
 export type SquadRole = (typeof SQUAD_ROLES)[number];
@@ -636,7 +637,10 @@ export function respondIncoming(state: GameState, dealId: string, answer: 'accep
   if (answer === 'reject') {
     d.status = 'rejected';
     note(state, d, 'Rechazas la oferta.');
-    if (p.attributes.ambition >= 15 && buyer.reputation > (ix.clubs.get(state.userClubId)?.reputation ?? 0)) p.morale = clamp(p.morale - 8, 5, 100);
+    if (p.attributes.ambition >= 15 && buyer.reputation > (ix.clubs.get(state.userClubId)?.reputation ?? 0)) {
+      p.morale = clamp(p.morale - 8, 5, 100);
+      addConcern(state, p.id, 'transfer', buyer.reputation > (ix.clubs.get(state.userClubId)?.reputation ?? 0) + 1500 ? 2 : 1);
+    }
     return d;
   }
   if (answer !== 'accept') {

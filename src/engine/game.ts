@@ -25,6 +25,10 @@ import { cupPrize, economyDay, initEconomy, rolloverFinances, seasonEndFinances,
 import { initScouting, scoutingDay, type ScoutingState } from './scouting';
 import { initTransfers, rolloverContracts, transfersDay, type TransfersState } from './transfers';
 import { boardAfterMatch, boardDay, boardSeasonEnd, initBoard, type BoardState } from './board';
+import { initTraining, medicalDays, recoveryFactor, trainingDay, type TrainingState } from './training';
+import { initProgression, progressionDay, recordMinutes, seasonProgressReport, type ProgressionState } from './progression';
+import { dressingAfterMatch, dressingDay, initDressing, type DressingState } from './dressingRoom';
+import { retirements, seasonAwards, trimAiSquads, youthIntake, type SeasonAwards } from './seasonLife';
 
 export const GAME_STATE_VERSION = 1;
 
@@ -146,6 +150,16 @@ export interface GameState {
   transfers: TransfersState;
   /** Directiva del club del usuario. */
   board: BoardState;
+  /** Entrenamiento del club del usuario. */
+  training: TrainingState;
+  /** Progresión de jugadores (acumuladores, minutos recientes, cambios). */
+  progression: ProgressionState;
+  /** Vestuario del usuario: preocupaciones, promesas, reuniones. */
+  dressing: DressingState;
+  /** Premios de cada temporada y liga. */
+  awards: SeasonAwards[];
+  /** Última hornada de canteranos del usuario. */
+  youthIntake: { date: string; ids: string[] } | null;
   seq: number;
 }
 
@@ -344,6 +358,11 @@ export function newGame(setup: NewGameSetup): GameState {
     scouting: null as unknown as ScoutingState,
     transfers: null as unknown as TransfersState,
     board: null as unknown as BoardState,
+    training: null as unknown as TrainingState,
+    progression: null as unknown as ProgressionState,
+    dressing: null as unknown as DressingState,
+    awards: [],
+    youthIntake: null,
     seq: 0,
   };
   setupSeason(state, startYear);
@@ -351,6 +370,9 @@ export function newGame(setup: NewGameSetup): GameState {
   initScouting(state);
   initTransfers(state);
   initBoard(state);
+  initTraining(state);
+  initDressing(state);
+  initProgression(state);
   state.userTactic = bestTacticFor(indexes(state).squads.get(club.id) ?? []);
   addMessage(state, {
     type: 'board', priority: 'urgent', key: 'welcome', sender: `Directiva de ${club.name}`,
@@ -631,6 +653,7 @@ function playFixture(state: GameState, f: Fixture, detail: 'fast' | 'full', play
     state.userMatches[f.id] = r.match;
     growFamiliarity(state, 2.5);
     boardAfterMatch(state, f);
+    dressingAfterMatch(state, f, r);
   }
   for (const p of suspendedBefore) p.cards.suspendedMatches = Math.max(0, p.cards.suspendedMatches - 1);
   applyPlayerResults(state, f, r, playedToday);
@@ -654,6 +677,7 @@ function applyPlayerResults(state: GameState, f: Fixture, r: MatchResult, played
       p.condition = st.condition;
       p.matchSharpness = st.sharpness;
       state.lastPlayed[p.id] = f.date;
+      recordMinutes(state, p.id, st.minutes);
       p.form = [...p.form, st.rating].slice(-5);
       p.morale = clamp(p.morale + (won ? 4 : lost ? -4 : 0) + (st.rating >= 7.5 ? 3 : st.rating < 6 ? -2 : 0), 5, 100);
       // Estadísticas de temporada por competición
@@ -699,7 +723,9 @@ function applyPlayerResults(state: GameState, f: Fixture, r: MatchResult, played
   for (const inj of r.injuries) {
     const p = ix.players.get(inj.playerId);
     if (!p) continue;
-    p.injury = inj.injury;
+    const days = medicalDays(state, p.clubId, inj.injury.daysOut);
+    p.injury = { ...inj.injury, daysOut: days, daysRemaining: days };
+    inj.injury = p.injury;
     if (p.clubId === state.userClubId) {
       addMessage(state, {
         type: 'injury', priority: inj.injury.severity === 'minor' ? 'normal' : 'high', key: 'injury', sender: 'Servicios médicos',
@@ -894,11 +920,13 @@ export function leagueTable(state: GameState, competitionId: string, season = st
 
 // ---------------------------------------------------------------- día a día
 function dailyUpdate(state: GameState, playedToday: Set<string>): void {
-  growFamiliarity(state, 0.5);
+  growFamiliarity(state, 0.5 * (0.6 + state.training.plan.focus.tactical / 60));
+  const recovery = new Map<string, number>();
   for (const p of state.world.players) {
     if (!playedToday.has(p.id)) {
       const nf = p.attributes.naturalFitness;
-      p.condition = clamp(Math.round((p.condition + (100 - p.condition) * (0.2 + nf * 0.007)) * 10) / 10, 0, 100);
+      const k = p.clubId ? recovery.get(p.clubId) ?? recovery.set(p.clubId, recoveryFactor(state, p.clubId)).get(p.clubId)! : 1;
+      p.condition = clamp(Math.round((p.condition + (100 - p.condition) * (0.2 + nf * 0.007) * k) * 10) / 10, 0, 100);
       const last = state.lastPlayed[p.id];
       if (!last || daysBetween(last, state.date) > 6) p.matchSharpness = clamp(p.matchSharpness - 0.5, 15, 100);
     }
@@ -916,6 +944,9 @@ function dailyUpdate(state: GameState, playedToday: Set<string>): void {
     // Moral: vuelve poco a poco a su nivel normal
     p.morale = p.morale + (60 - p.morale) * 0.01;
   }
+  trainingDay(state, playedToday);
+  progressionDay(state);
+  dressingDay(state);
   economyDay(state);
   scoutingDay(state);
   transfersDay(state);
@@ -959,6 +990,7 @@ function processSeasonEnd(state: GameState): void {
   }
   state.pendingMoves = moves;
   seasonEndFinances(state);
+  seasonAwards(state);
   // Mensaje al usuario
   const userLeague = leagueOf(state, state.userClubId);
   const club = ix.clubs.get(state.userClubId);
@@ -1013,8 +1045,11 @@ function rollover(state: GameState): void {
     p.cards = { yellow: 0, red: 0, suspendedMatches: 0 };
     p.matchSharpness = clamp(p.matchSharpness * 0.6, 20, 100);
   }
-  // Cesiones que terminan y contratos vencidos
+  // Retiradas, cesiones que terminan, contratos vencidos y nueva generación de canteranos
+  retirements(state, newStart);
   rolloverContracts(state, newStart, nextYear);
+  youthIntake(state, newStart);
+  trimAiSquads(state);
   rolloverFinances(state, levelChange);
   // Objetivos de la directiva para la nueva categoría
   for (const club of state.world.clubs) refreshObjectives(state, club);
@@ -1031,6 +1066,7 @@ function rollover(state: GameState): void {
   const club = indexes(state).clubs.get(state.userClubId);
   if (club) {
     addMessage(state, { type: 'board', priority: 'high', key: 'newSeason', sender: `Directiva de ${club.name}`, params: { season: state.season, objectives: objectivesText(state, club) } });
+    seasonProgressReport(state);
   }
 }
 

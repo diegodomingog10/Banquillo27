@@ -281,7 +281,21 @@ export const es = {
     boardWantsSales: { subject: 'La directiva pide ventas', body: 'La masa salarial supera lo presupuestado. Antes del {deadline} hay que vender o ceder para equilibrar las cuentas.' },
     boardWantsSignings: { subject: 'La directiva espera refuerzos', body: 'Los resultados no acompañan y hay {budget} disponibles. La directiva espera fichajes antes del {deadline}.' },
     facilityDone: { subject: 'Obras terminadas', body: '{facility} han mejorado un nivel.' },
+    // Fase 7: entrenamiento y progresión
+    trainingInjury: { subject: '{player} se lesiona entrenando', body: '{player} sufre: {injury} en el entrenamiento (carga {load}). Baja estimada: {days} días.' },
+    positionLearned: { subject: '{player} progresa en su nueva posición', body: '{player} ya tiene un nivel {level}/20 como {position}.' },
+    progressReport: { subject: 'Informe mensual de progresos', body: 'Mejoran: {up}. En retroceso: {down}.' },
+    seasonProgress: { subject: 'Balance de la temporada en el entrenamiento', body: 'Los que más han progresado: {up}. Los que han bajado: {down}.' },
+    // Fase 7: vestuario
+    wantsTalk: { subject: '{player} quiere hablar contigo', body: '{player} {reason}. Puedes hablar con él desde su ficha o desde el vestuario.' },
+    conflict: { subject: 'Problema en el vestuario con {player}', body: '{player} ha mostrado públicamente su malestar. Conviene hablar con él cuanto antes.' },
+    promiseBroken: { subject: '{player} se siente engañado', body: 'No has cumplido lo que le prometiste a {player}. Su moral se resiente y el vestuario lo nota.' },
+    // Fase 7: fin de temporada
+    awards: { subject: 'Premios de la {league}', body: 'Mejor jugador: {best}. Máximo goleador: {scorer}. Mejor joven: {young}. Mejor portero: {gk}. De tu equipo en el once ideal: {mine}.' },
+    retirements: { subject: 'Retiradas', body: 'Anuncian su retirada: {names}.' },
+    youthIntake: { subject: 'Llegan los nuevos canteranos', body: 'Se incorporan {count} juveniles a la cantera: {names}. Revisa su potencial en la pantalla de Entrenamiento.' },
   },
+  intensity: { low: 'suave', normal: 'normal', high: 'intensa' },
   verdict: { met: 'Objetivo cumplido.', missed: 'Objetivo no cumplido.' },
   objective: {
     winLeague: 'ganar la liga',
