@@ -57,6 +57,7 @@ export function ensureDefaults(state: GameState): GameState {
   if (!s.dressing) initDressing(state);
   if (!s.progression) initProgression(state);
   s.awards ??= [];
+  (s as { continental?: GameState['continental'] }).continental ??= {};
   if (s.youthIntake === undefined) s.youthIntake = null;
   return state;
 }

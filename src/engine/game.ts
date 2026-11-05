@@ -29,6 +29,7 @@ import { initTraining, medicalDays, recoveryFactor, trainingDay, type TrainingSt
 import { initProgression, progressionDay, recordMinutes, seasonProgressReport, type ProgressionState } from './progression';
 import { dressingAfterMatch, dressingDay, initDressing, type DressingState } from './dressingRoom';
 import { retirements, seasonAwards, trimAiSquads, youthIntake, type SeasonAwards } from './seasonLife';
+import { afterContinentalFixture, aggregateFor, continentalDay, planContinental, qualifyContinental, roundName, type ContinentalState } from './continental';
 
 export const GAME_STATE_VERSION = 1;
 
@@ -39,7 +40,13 @@ export interface Fixture {
   season: string;
   /** Clave de ronda: "md:5", "cup:qf", "po:sf"... */
   round: string;
-  stage: 'league' | 'cup' | 'playoff';
+  stage: 'league' | 'cup' | 'playoff' | 'continental';
+  /** Grupo (torneos continentales). */
+  group?: string;
+  /** Vuelta de una eliminatoria: id del partido de ida. */
+  firstLegId?: string;
+  /** Campo neutral (finales continentales). */
+  neutral?: boolean;
   date: string;
   homeId: string;
   awayId: string;
@@ -120,6 +127,8 @@ export interface GameState {
   calendar: SeasonCalendar;
   fixtures: Fixture[];
   cups: Record<string, CupState>;
+  /** Torneos continentales de la temporada. */
+  continental: Record<string, ContinentalState>;
   playoffs: Record<string, PlayoffState>;
   /** Partidos completos del usuario (eventos, alineaciones, estadísticas, notas). */
   userMatches: Record<string, Match>;
@@ -220,7 +229,7 @@ function buildIndexes(state: GameState): Indexes {
   };
 }
 
-function addFixture(state: GameState, f: Fixture): void {
+export function addFixture(state: GameState, f: Fixture): void {
   state.fixtures.push(f);
   const ix = INDEX.get(state);
   if (ix) {
@@ -230,8 +239,8 @@ function addFixture(state: GameState, f: Fixture): void {
 }
 
 // ---------------------------------------------------------------- utilidades
-const nextId = (state: GameState, prefix: string) => `${prefix}${(++state.seq).toString(36)}`;
-const rngFor = (state: GameState, label: string) => createRng(hashString(`${state.seed}:${label}`));
+export const nextId = (state: GameState, prefix: string) => `${prefix}${(++state.seq).toString(36)}`;
+export const rngFor = (state: GameState, label: string) => createRng(hashString(`${state.seed}:${label}`));
 
 function clubName(state: GameState, id: string): string {
   return indexes(state).clubs.get(id)?.name ?? id;
@@ -245,6 +254,8 @@ export function roundLabel(round: string): string {
   const [kind, k] = round.split(':');
   if (kind === 'md') return t('round.md', { n: Number(k) });
   if (kind === 'po') return t(k === 'sf' ? 'round.posf' : 'round.pofinal');
+  if (kind === 'gs') return `Fase de grupos · jornada ${k}`;
+  if (kind === 'ko') { const leg = round.split(':')[2]; return `${roundName(k ?? '')}${leg ? (leg === '1' ? ' (ida)' : ' (vuelta)') : ''}`; }
   return t(`round.${k}`);
 }
 
@@ -340,6 +351,7 @@ export function newGame(setup: NewGameSetup): GameState {
     calendar: buildSeasonCalendar(startYear),
     fixtures: [],
     cups: {},
+    continental: {},
     playoffs: {},
     userMatches: {},
     userTactic: tacticFromFormation('4-4-2'),
@@ -413,8 +425,14 @@ function setupSeason(state: GameState, year: number): void {
   const delta = year - state.baseYear;
   const blocked = cal.internationalBreaks;
 
-  // Copas nacionales: fechas reservadas (miércoles)
+  // Torneos continentales y copas nacionales: fechas reservadas entre semana
   const reserved = new Set<string>();
+  state.continental = {};
+  for (const comp of state.world.competitions) {
+    if (comp.format !== 'groupCup') continue;
+    const cs = planContinental(state, comp, year, reserved);
+    if (cs) state.continental[comp.id] = cs;
+  }
   const cupDates = midweekDates(isoFromParts(year, 9, 20), isoFromParts(year + 1, 5, 19), blocked);
   for (const comp of state.world.competitions) {
     if (comp.format !== 'cup') continue;
@@ -545,6 +563,7 @@ function advanceDay(state: GameState): { reason: StopReason; fixtureId?: string 
   for (const cup of Object.values(state.cups)) {
     if (drawCupRoundIfDue(state, cup)) drawStop = true;
   }
+  if (continentalDay(state)) drawStop = true;
   if (drawStop && once(`drawstop:${d}`)) return { reason: 'draw' };
 
   // 4. Playoffs (cuando termina la liga regular)
@@ -622,7 +641,7 @@ export function buildMatchInput(state: GameState, f: Fixture, detail: 'fast' | '
     detail,
     context: {
       matchId: f.id, competitionId: f.competitionId, season: f.season, round: f.round, date: f.date,
-      decideWinner: f.decideWinner, weather: weatherFor(state, f), pitchCondition: home.stadium.pitchCondition,
+      decideWinner: f.decideWinner, aggregate: aggregateFor(state, f), neutral: f.neutral ?? false, weather: weatherFor(state, f), pitchCondition: home.stadium.pitchCondition,
       capacity: home.stadium.capacity, importance, maxSubstitutions: comp?.rules.maxSubstitutions ?? 5,
     },
   };
@@ -793,6 +812,7 @@ export function playUserMatch(state: GameState, precomputed?: MatchResult): { fi
 function afterFixture(state: GameState, f: Fixture): void {
   if (!f.played || !f.result || state.processed[`after:${f.id}`]) return;
   state.processed[`after:${f.id}`] = true;
+  if (f.stage === 'continental') { afterContinentalFixture(state, f); return; }
   if (f.stage === 'cup') {
     const cup = state.cups[f.competitionId];
     if (!cup) return;
@@ -1055,6 +1075,7 @@ function rollover(state: GameState): void {
   for (const club of state.world.clubs) refreshObjectives(state, club);
   // Limpieza: se conserva el historial resumido, no los partidos
   const keepSeason = state.season;
+  qualifyContinental(state, new Map(state.history.filter((h) => h.season === keepSeason).map((h) => [h.competitionId, h.table])));
   state.fixtures = [];
   state.cups = {};
   state.playoffs = {};

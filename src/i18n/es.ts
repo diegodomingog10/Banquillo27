@@ -281,6 +281,7 @@ export const es = {
     boardWantsSales: { subject: 'La directiva pide ventas', body: 'La masa salarial supera lo presupuestado. Antes del {deadline} hay que vender o ceder para equilibrar las cuentas.' },
     boardWantsSignings: { subject: 'La directiva espera refuerzos', body: 'Los resultados no acompañan y hay {budget} disponibles. La directiva espera fichajes antes del {deadline}.' },
     facilityDone: { subject: 'Obras terminadas', body: '{facility} han mejorado un nivel.' },
+    continentalDraw: { subject: 'Sorteo de la {cup}: grupo {group}', body: 'Rivales en el grupo {group}: {rivals}.\n\n{pots}\n\n{groups}' },
     // Fase 7: entrenamiento y progresión
     trainingInjury: { subject: '{player} se lesiona entrenando', body: '{player} sufre: {injury} en el entrenamiento (carga {load}). Baja estimada: {days} días.' },
     positionLearned: { subject: '{player} progresa en su nueva posición', body: '{player} ya tiene un nivel {level}/20 como {position}.' },

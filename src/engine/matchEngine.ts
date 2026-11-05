@@ -61,6 +61,8 @@ export interface MatchContext {
   date: string;
   /** Si hay que decidir ganador (prórroga y penaltis). */
   decideWinner?: boolean;
+  /** Vuelta de una eliminatoria: goles de la ida a sumar (desde el punto de vista de este partido). */
+  aggregate?: { home: number; away: number };
   neutral?: boolean;
   weather?: Weather;
   pitchCondition?: number;
@@ -855,7 +857,7 @@ export class MatchSimulation {
       this.next = { side: kickoffSide, band: 3, lane: 2, carrier: null, counter: false, counterPressed: false };
       return;
     }
-    if (per.period === 2 && this.input.context.decideWinner && this.teams[0].goals === this.teams[1].goals) {
+    if (per.period === 2 && this.input.context.decideWinner && this.levelOnAggregate()) {
       this.wentToExtraTime = true;
       const n = Math.round((this.periods[0]?.phases ?? 93) / 3);
       this.periods.push({ period: 3, start: 90, length: 15, phases: n, stoppage: this.rng.int(0, 2) });
@@ -866,7 +868,7 @@ export class MatchSimulation {
       this.next = { side: 0, band: 3, lane: 2, carrier: null, counter: false, counterPressed: false };
       return;
     }
-    if (per.period === 4 && this.teams[0].goals === this.teams[1].goals) this.shootout();
+    if (per.period === 4 && this.levelOnAggregate()) this.shootout();
     this.finish();
   }
 
@@ -1417,6 +1419,12 @@ export class MatchSimulation {
     return 'end';
   }
 
+  /** Empate en el partido o, en una vuelta, en el global. */
+  private levelOnAggregate(): boolean {
+    const agg = this.input.context.aggregate ?? { home: 0, away: 0 };
+    return this.teams[0].goals + agg.home === this.teams[1].goals + agg.away;
+  }
+
   private taker(t: TS, kind: 'corners' | 'freeKicks' | 'penalties'): RP {
     const id = t.takers[kind];
     const r = id ? t.byId.get(id) : undefined;
@@ -1618,7 +1626,10 @@ export class MatchSimulation {
     if (motm) playerStats[motm]!.rating = Math.min(10, playerStats[motm]!.rating);
     home.stats.xg = round3(home.stats.xg);
     away.stats.xg = round3(away.stats.xg);
-    let winner: MatchResult['winner'] = home.goals > away.goals ? 'home' : away.goals > home.goals ? 'away' : null;
+    const agg = this.input.context.aggregate ?? { home: 0, away: 0 };
+    const th = home.goals + agg.home;
+    const ta = away.goals + agg.away;
+    let winner: MatchResult['winner'] = th > ta ? 'home' : ta > th ? 'away' : null;
     if (!winner && this.penalties) winner = this.penalties.home > this.penalties.away ? 'home' : 'away';
     const lineupOf = (t: TS) => ({
       starting: t.players.filter((r) => r.st.started).sort((a, b) => a.startSlot - b.startSlot).map((r) => {

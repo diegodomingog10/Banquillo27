@@ -9,6 +9,7 @@ import { ageAt } from './date';
 import { t } from '../i18n';
 import { hasBlocking, indexes, leagueOf, leagueTable, roundLabel, type Fixture, type GameState } from './game';
 import { resolveUserLineup } from './manager';
+import { continentalView } from './continental';
 
 export interface FixtureView {
   id: string;
@@ -226,7 +227,7 @@ export function inboxView(state: GameState): Message[] {
 
 export function competitionsList(state: GameState): { id: string; name: string; format: string; nationId: string | null; level: number; mine: boolean }[] {
   return state.world.competitions
-    .filter((c) => c.format === 'league' || state.cups[c.id])
+    .filter((c) => c.format === 'league' || state.cups[c.id] || state.continental[c.id])
     .map((c) => ({ id: c.id, name: c.name, format: c.format, nationId: c.nationId, level: c.level, mine: c.teamIds.includes(state.userClubId) }))
     .sort((a, b) => Number(b.mine) - Number(a.mine) || Number(b.format === 'league') - Number(a.format === 'league') || (a.nationId ?? '').localeCompare(b.nationId ?? '') || a.level - b.level);
 }
@@ -247,7 +248,8 @@ export function competitionView(state: GameState, competitionId: string) {
     format: comp.format,
     table: comp.format === 'league' ? tableView(state, comp.id) : [],
     rounds: [...rounds.entries()].map(([key, list]) => ({ key, label: roundLabel(key), fixtures: list })),
-    champion: state.cups[comp.id]?.championId ? names(state).club(state.cups[comp.id]!.championId!) : null,
+    champion: state.cups[comp.id]?.championId ? names(state).club(state.cups[comp.id]!.championId!) : state.continental[comp.id]?.championId ? names(state).club(state.continental[comp.id]!.championId!) : null,
+    continental: continentalView(state, comp.id),
   };
 }
 

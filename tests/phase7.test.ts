@@ -135,3 +135,35 @@ describe('fin de temporada', () => {
     expect(Array.isArray(s.awards)).toBe(true);
   });
 });
+
+import { simulateMatch } from '../src/engine/matchEngine';
+import { buildMatchInput, invalidate } from '../src/engine/game';
+describe('torneos continentales', () => {
+  it('se planifican con grupos, eliminatorias y fechas entre semana', () => {
+    const w = generateWorld({ seed: 5, nations: 4 });
+    const s = newGame({ world: w, userClubId: w.clubs[0]!.id, manager: { firstName: 'A', lastName: 'B', nationality: null }, seed: 1 });
+    const cs = Object.values(s.continental);
+    expect(cs.length).toBe(2);
+    for (const c of cs) {
+      expect(c.groups.length).toBeGreaterThanOrEqual(2);
+      expect(c.groupDates.length).toBe(6);
+      expect(c.rounds.at(-1)!.key).toBe('final');
+      for (const d of c.groupDates) expect([2, 4]).toContain(new Date(`${d}T00:00:00Z`).getUTCDay());
+    }
+  });
+  it('la vuelta decide por el global', () => {
+    const w = generateWorld({ seed: 5, nations: 1 });
+    const s = newGame({ world: w, userClubId: w.clubs[0]!.id, manager: { firstName: 'A', lastName: 'B', nationality: null }, seed: 1 });
+    const [a, b] = [w.clubs[1]!.id, w.clubs[2]!.id];
+    const leg1 = { id: 'L1', competitionId: 'x', season: s.season, round: 'ko:qf:1', stage: 'continental' as const, date: s.date, homeId: a, awayId: b, played: true, decideWinner: false, result: { homeGoals: 5, awayGoals: 0, extraTime: false, penalties: null, winnerId: null }, summary: null };
+    s.fixtures.push(leg1);
+    const leg2 = { ...leg1, id: 'L2', round: 'ko:qf:2', homeId: b, awayId: a, played: false, decideWinner: true, result: null, firstLegId: 'L1' };
+    s.fixtures.push(leg2);
+    invalidate(s);
+    const input = buildMatchInput(s, leg2, 'fast');
+    expect(input.context.aggregate).toEqual({ home: 0, away: 5 });
+    const r = simulateMatch(input);
+    const totalB = r.match.result!.homeGoals, totalA = 5 + r.match.result!.awayGoals;
+    if (totalA !== totalB) expect(r.winner).toBe(totalA > totalB ? 'away' : 'home');
+  });
+});
