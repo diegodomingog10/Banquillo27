@@ -284,7 +284,7 @@ export function resolveMessage(state: GameState, messageId: string, actionId: st
   const m = state.inbox.find((x) => x.id === messageId);
   if (!m) return;
   m.read = true;
-  if (m.blocking) m.resolvedActionId = actionId ?? 'dismiss';
+  if (m.blocking || m.actions.length) m.resolvedActionId = actionId ?? 'dismiss';
 }
 
 export function markRead(state: GameState, messageId: string): void {

@@ -83,7 +83,11 @@ export function InboxScreen() {
               {selected.blocking && !selected.resolvedActionId && (selected.actions.length ? selected.actions : [{ id: 'ok', kind: 'accept' as const, labelKey: 'common.understood', payload: {} }]).map((a) => (
                 <Button key={a.id} variant="primary" icon="check" onClick={() => void act(selected, a.id)}>{t(a.labelKey)}</Button>
               ))}
-              {selected.blocking && selected.resolvedActionId && <Badge tone="good">Respondido</Badge>}
+              {!selected.blocking && !selected.resolvedActionId && selected.actions.map((a) => (
+                <Button key={a.id} variant={a.kind === 'accept' ? 'primary' : 'secondary'} icon={a.kind === 'accept' ? 'check' : a.kind === 'reject' ? 'close' : 'transfers'}
+                  onClick={() => a.kind === 'negotiate' && selected.related.playerId ? go('player', { playerId: selected.related.playerId }) : void act(selected, a.id)}>{t(a.labelKey)}</Button>
+              ))}
+              {selected.resolvedActionId && <Badge tone="good">Respondido</Badge>}
             </div>
           </Card>
         )}

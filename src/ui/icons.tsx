@@ -2,6 +2,7 @@
 import type { SVGProps } from 'react';
 
 export const ICONS = {
+  alert: 'M12 4 2.5 20h19L12 4zM12 10v4.5M12 17.2v.3',
   mic: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7',
   shirt: 'M9 4 4 7l2 4 2-1v10h8V10l2 1 2-4-5-3c-.5 1.5-1.7 2.2-3 2.2S9.5 5.5 9 4z',
   home: 'M3 11.5 12 4l9 7.5M5.5 10v10h13V10',

@@ -190,8 +190,8 @@ export function SquadScreen() {
         <div role="region" aria-label="Acciones en bloque" className="sticky bottom-4 flex flex-wrap items-center gap-2 self-center rounded-[14px] border border-accent-line bg-raise py-2 pl-4 pr-2 shadow-2xl">
           <span className="mr-2 font-semibold">{sel.length} seleccionado{sel.length === 1 ? '' : 's'}</span>
           <Button variant="soft" icon="compare" disabled={sel.length !== 2} title={sel.length !== 2 ? 'Selecciona exactamente dos jugadores' : undefined} onClick={() => setCompare([sel[0]!, sel[1]!])}>Comparar</Button>
-          <Button variant="soft" icon="transfers" disabled title="Disponible con el mercado (Fase 6)">Ofrecer a clubes</Button>
-          <Button variant="soft" icon="loan" disabled title="Disponible con el mercado (Fase 6)">Ceder</Button>
+          <Button variant="soft" icon="transfers" onClick={() => void Promise.all(sel.map((id) => game('setListed', { playerId: id, listing: { asking: null, loan: false } }).catch(() => false))).then(load)}>Poner en venta</Button>
+          <Button variant="soft" icon="loan" onClick={() => void Promise.all(sel.map((id) => game('setListed', { playerId: id, listing: { asking: null, loan: true } }).catch(() => false))).then(load)}>Declarar cedibles</Button>
           <Button variant="soft" icon="star" onClick={() => void Promise.all(sel.map((id) => game('toggleShortlist', { id }))).then(load)}>Lista de seguimiento</Button>
           <IconButton icon="close" label="Quitar selección" className="border-0" onClick={() => setSelected(new Set())} />
         </div>
@@ -227,8 +227,8 @@ export function CompareDialog({ ids, onClose }: { ids: [string, string] | null; 
               <div key={title}>
                 <div className="mb-2 text-xs uppercase tracking-[0.08em] text-muted">{title}</div>
                 {attrs.map((a) => {
-                  const x = pair[0].attributes[a];
-                  const y = pair[1].attributes[a];
+                  const x = pair[0].attributes[a] ?? 0;
+                  const y = pair[1].attributes[a] ?? 0;
                   return (
                     <div key={a} className="grid grid-cols-[28px_1fr_28px] items-center gap-2 py-0.5 text-[13px]">
                       <span className={cx('num text-right font-bold', x > y ? 'text-good-text' : 'text-muted')}>{x}</span>

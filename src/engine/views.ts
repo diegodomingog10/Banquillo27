@@ -52,6 +52,7 @@ export interface DashboardView {
   manager: string;
   league: { id: string; name: string; position: number | null; rows: TableRowView[] } | null;
   next: FixtureView[];
+  board: { confidence: number; fired: boolean };
   /** Equipaciones del próximo partido. */
   nextKits: MatchKits | null;
   last: FixtureView[];
@@ -165,6 +166,7 @@ export function dashboardView(state: GameState): DashboardView {
     manager: `${state.manager.firstName} ${state.manager.lastName}`,
     league: league ? { id: league.id, name: league.name, position: rows.find((r) => r.clubId === club.id)?.position ?? null, rows } : null,
     next: mine.filter((f) => !f.played).slice(0, 5).map((f) => fixtureView(state, f, club.id)),
+    board: { confidence: Math.round(state.board.confidence), fired: state.board.fired },
     nextKits: (() => { const f = mine.find((x) => !x.played); const h = f && ix.clubs.get(f.homeId); const a = f && ix.clubs.get(f.awayId); return h && a ? matchKits(h, a) : null; })(),
     last: mine.filter((f) => f.played).slice(-5).reverse().map((f) => fixtureView(state, f, club.id)),
     unread: state.inbox.filter((m) => !m.read).length,

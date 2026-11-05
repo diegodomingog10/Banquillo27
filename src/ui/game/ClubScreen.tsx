@@ -56,7 +56,7 @@ export function ClubScreen() {
             <Stat label="Presupuesto salarial" value={money(f.wageBudget)} hint="por semana" />
             <Stat label="Deuda" value={money(f.debt)} tone={f.debt > 0 ? 'warn' : 'good'} />
           </div>
-          <p className="mt-3 text-xs text-muted">Ingresos por temporada: TV {money(f.seasonIncome.tv)}, taquilla {money(f.seasonIncome.tickets)}, patrocinio {money(f.seasonIncome.sponsorship)}. El detalle llega con Finanzas (Fase 6).</p>
+          <p className="mt-3 text-xs text-muted">Ingresos por temporada: TV {money(f.seasonIncome.tv)}, taquilla {money(f.seasonIncome.tickets)}, patrocinio {money(f.seasonIncome.sponsorship)}. Detalle completo en Finanzas.</p>
         </Card>
         <Card title="Directiva" icon="target">
           <ul className="list-inside list-disc text-[13px] text-soft">{c.objectives.map((o) => <li key={o} className="first-letter:uppercase">{o}</li>)}</ul>

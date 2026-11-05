@@ -14,6 +14,11 @@ import { competitionView, competitionsList, dashboardView, inboxView, matchView,
 import { clubView, opponentAnalysis, playerProfile, search, squadTable, tacticsView } from '../engine/profileViews';
 import { setUserLineup, setUserTactic, type DashboardTile, type SquadView } from '../engine/manager';
 import type { TeamTactic } from '../engine/tactics';
+import { adjustBudgets, financeView, setTicketPrice } from '../engine/economy';
+import { assignScout, requestReport, scoutingView, type ScoutAssignment } from '../engine/scouting';
+import { acceptCounter, dealView, exerciseBuyOption, makeOffer, playerDemands, proposeContract, respondIncoming, setListed, startRenewal, transfersView, withdrawDeal, type ContractTerms, type OfferTerms } from '../engine/transfers';
+import { acceptJob, boardRequest, boardView, type BoardRequestKind } from '../engine/board';
+import { marketSearch, type MarketFilter } from '../engine/market';
 import { deleteSave, deserializeGame, listSaves, loadGame, saveGame, serializeGame } from '../store/saves';
 
 let state: GameState | null = null;
@@ -108,8 +113,18 @@ export const api = {
   async dashboard() { return dashboardView(need()); },
   async inbox() { return inboxView(need()); },
   async resolveMessage(p: { id: string; actionId: string | null }) {
-    resolveMessage(need(), p.id, p.actionId);
-    return dashboardView(need());
+    const s = need();
+    const m = s.inbox.find((x) => x.id === p.id);
+    const action = m?.actions.find((a) => a.id === p.actionId);
+    const dealId = action?.payload.dealId as string | undefined;
+    // Ofertas por jugadores propios: aceptar o rechazar desde la bandeja
+    if (dealId && (p.actionId === 'accept' || p.actionId === 'reject')) {
+      const d = s.transfers.deals.find((x) => x.id === dealId);
+      if (d?.status === 'pendingUser') respondIncoming(s, dealId, p.actionId);
+    }
+    if (p.actionId !== 'negotiate') resolveMessage(s, p.id, p.actionId);
+    else markRead(s, p.id);
+    return dashboardView(s);
   },
   async markRead(p: { id: string }) { markRead(need(), p.id); return true; },
   async competitions() { return competitionsList(need()); },
@@ -127,6 +142,41 @@ export const api = {
   async search(p: { q: string }) { return search(need(), p.q); },
   async club(p: { id: string }) { return clubView(need(), p.id); },
   async ui() { return need().ui; },
+  // ---------------------------------------------------------------- Fase 6
+  async finances() { return financeView(need()); },
+  async adjustBudgets(p: { weekly: number }) { adjustBudgets(need(), p.weekly); return financeView(need()); },
+  async setTicketPrice(p: { price: number }) { setTicketPrice(need(), p.price); return financeView(need()); },
+  async scouting() { return scoutingView(need()); },
+  async assignScout(p: { scoutId: string; target: ScoutAssignment['target'] | null; focus?: ScoutAssignment['focus'] }) { assignScout(need(), p.scoutId, p.target, p.focus); return scoutingView(need()); },
+  async requestReport(p: { playerId: string }) { return requestReport(need(), p.playerId); },
+  async transfers() { return transfersView(need()); },
+  async market(p: { filter: MarketFilter }) { return marketSearch(need(), p.filter); },
+  async makeOffer(p: { playerId: string; terms: OfferTerms }) { return dealView(need(), makeOffer(need(), p.playerId, p.terms)); },
+  async acceptCounter(p: { dealId: string }) { return dealView(need(), acceptCounter(need(), p.dealId)); },
+  async withdrawDeal(p: { dealId: string }) { withdrawDeal(need(), p.dealId); return transfersView(need()); },
+  async renewal(p: { playerId: string }) { return dealView(need(), startRenewal(need(), p.playerId)); },
+  async deal(p: { dealId: string }) {
+    const s = need();
+    const d = s.transfers.deals.find((x) => x.id === p.dealId);
+    if (!d) return null;
+    return { ...dealView(s, d), demands: d.status === 'negotiating' ? d.demands ?? playerDemands(s, d) : d.demands };
+  },
+  async proposeContract(p: { dealId: string; terms: ContractTerms }) {
+    const s = need();
+    const r = proposeContract(s, p.dealId, p.terms);
+    return { result: r.result, text: r.text, demands: r.demands, deal: dealView(s, r.deal), dashboard: dashboardView(s) };
+  },
+  async respondIncoming(p: { dealId: string; answer: 'accept' | 'reject' | { counterFee: number } }) { const s = need(); return { deal: dealView(s, respondIncoming(s, p.dealId, p.answer)), dashboard: dashboardView(s) }; },
+  async setListed(p: { playerId: string; listing: { asking: number | null; loan: boolean } | null }) { setListed(need(), p.playerId, p.listing); return true; },
+  async exerciseOption(p: { playerId: string }) { exerciseBuyOption(need(), p.playerId); return dashboardView(need()); },
+  async board() { return boardView(need()); },
+  async boardRequest(p: { kind: BoardRequestKind }) { return { ...boardRequest(need(), p.kind), view: boardView(need()) }; },
+  async acceptJob(p: { clubId: string }) {
+    const s = need();
+    acceptJob(s, p.clubId);
+    for (const m of s.inbox) if (m.blocking && !m.resolvedActionId) resolveMessage(s, m.id, 'ok');
+    return dashboardView(s);
+  },
   async toggleShortlist(p: { id: string }) {
     const s = need();
     s.ui.shortlist = s.ui.shortlist.includes(p.id) ? s.ui.shortlist.filter((x) => x !== p.id) : [...s.ui.shortlist, p.id];

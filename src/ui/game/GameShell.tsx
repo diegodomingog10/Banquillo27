@@ -17,6 +17,9 @@ import { PreMatch } from './PreMatch';
 import { SearchPalette } from './SearchPalette';
 import { SquadScreen } from './SquadScreen';
 import { TacticsScreen } from './TacticsScreen';
+import { TransfersScreen } from './TransfersScreen';
+import { FinancesScreen } from './FinancesScreen';
+import { BoardScreen, FiredScreen } from './BoardScreen';
 
 const NAV: { id: GameScreen | null; label: string; icon: IconName; soon?: string }[] = [
   { id: 'dashboard', label: 'Inicio', icon: 'home' },
@@ -24,10 +27,11 @@ const NAV: { id: GameScreen | null; label: string; icon: IconName; soon?: string
   { id: 'squad', label: 'Plantilla', icon: 'squad' },
   { id: 'tactics', label: 'Tácticas', icon: 'tactics' },
   { id: null, label: 'Entrenamiento', icon: 'training', soon: 'Fase 7' },
-  { id: null, label: 'Fichajes', icon: 'transfers', soon: 'Fase 6' },
-  { id: null, label: 'Finanzas', icon: 'finance', soon: 'Fase 6' },
+  { id: 'transfers', label: 'Fichajes', icon: 'transfers' },
+  { id: 'finances', label: 'Finanzas', icon: 'finance' },
   { id: 'competitions', label: 'Competiciones', icon: 'trophy' },
   { id: 'club', label: 'Club', icon: 'club' },
+  { id: 'board', label: 'Directiva', icon: 'target' },
 ];
 
 /** Botón Continuar: avanza hasta el siguiente evento y lleva a la pantalla adecuada. */
@@ -38,6 +42,7 @@ export function useContinue() {
     const d = st.dashboard;
     if (st.busy || !d) return;
     if (d.pendingMatch) { go(st.nav.screen === 'live' ? 'live' : 'prematch', { fixtureId: d.pendingMatch.id }); return; }
+    if (d.board.fired) return;
     if (d.blocking) { go('inbox', { messageId: null }); return; }
     setBusy(true);
     setStatus(null);
@@ -95,6 +100,7 @@ export function GameShell() {
     dashboard: <Dashboard />, inbox: <InboxScreen />, squad: <SquadScreen />, tactics: <TacticsScreen />, competitions: <Competitions />,
     club: <ClubScreen />, player: <PlayerScreen />, prematch: <PreMatch />, match: <MatchReport />,
     live: <LiveMatchScreen />, postmatch: <PostMatchScreen />,
+    transfers: <TransfersScreen />, finances: <FinancesScreen />, board: <BoardScreen />,
   }[nav.screen];
 
   return (
@@ -153,7 +159,7 @@ export function GameShell() {
             {busy ? 'Avanzando…' : label}<Icon name="arrowRight" strokeWidth={2.2} />
           </button>
         </header>
-        <main className="min-w-0 flex-1 px-7 pb-10 pt-6">{screen}</main>
+        <main className="min-w-0 flex-1 px-7 pb-10 pt-6">{d.board.fired ? <FiredScreen /> : screen}</main>
       </div>
       <SearchPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>

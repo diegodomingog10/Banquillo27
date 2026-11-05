@@ -245,6 +245,38 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 - El partido en directo usa el mismo motor y queda guardado igual que uno simulado; con las mismas
   órdenes en los mismos momentos, el resultado es el mismo.
 
+## Fichajes, ojeo, finanzas y directiva (Fase 6)
+
+**Economía** (`src/engine/economy.ts`)
+- Ingresos: taquilla en cada partido en casa (asistencia × precio), TV, patrocinio y merchandising mensuales, premios de liga al final de temporada, premios por ronda de copa y ventas.
+- Gastos: salarios de jugadores y staff cada lunes, gastos de operación, mantenimiento de instalaciones, intereses de la deuda, fichajes, primas, comisiones y multas.
+- Traspasos a plazos (40 % al contado y el resto en 6-36 meses), bonus por partidos y porcentajes de reventa como pagos programados.
+- Juego limpio financiero: pérdida máxima de 5 M€ o el 30 % de los ingresos (si el saldo queda negativo). Primera vez, advertencia; si se repite, multa del 3 % y prohibición de fichar en el siguiente verano.
+- Previsión del saldo y del resultado a final de temporada. Reparto del presupuesto entre fichajes y salarios (1 € semanal = 52 €) y precio de la entrada (más caro = menos público).
+
+**Ojeo** (`src/engine/scouting.ts`)
+- Los ojeadores del club se asignan a una liga o a un país (con filtro de posición y edad). Cada semana observan jugadores; cada cuatro, mandan un informe con los más interesantes.
+- Conocimiento por jugador (0-100): de tu liga se sabe un 35 %, de tu país un 20 %, del resto nada. Los atributos se revelan poco a poco y con un margen de error que depende del ojeador y de si conoce la zona.
+- Nivel y potencial en estrellas como rango estimado. Valoración A-D respecto a tu once. «Pedir informe» manda a un ojeador a ver a un jugador concreto.
+- Las búsquedas nunca ordenan ni filtran por datos reales que no conoces.
+
+**Mercado** (`src/engine/transfers.ts`, `src/engine/market.ts`)
+- Ofertas con importe, plazos, porcentaje de futura venta, bonus por partidos e intercambio de jugadores. El club responde al día siguiente: acepta, contraoferta o rechaza.
+- La valoración del club depende del peso del jugador en la plantilla, los años de contrato, la edad, la rivalidad y si es intransferible para clubes menores. La cláusula de rescisión obliga a vender.
+- Cesiones con reparto de salario, cuota y opción de compra (ejecutable antes del final).
+- Negociación con el jugador y su agente: salario, años, rol prometido, prima de fichaje, comisión, cláusula y bonus por gol. El jugador decide según su ambición, la reputación del club, los minutos que espera, la categoría, la lealtad y la personalidad (los mercenarios piden más). Cede un poco en cada ronda, pero pierde la paciencia.
+- Renovaciones, jugadores en venta o cedibles, ofertas de otros clubes por tus jugadores (aceptar, rechazar o contraofertar desde la bandeja) y agentes libres en cualquier momento.
+- Con el mercado cerrado se puede negociar: el fichaje es oficial al abrir.
+- Al final de temporada vuelven los cedidos y los contratos vencidos quedan libres. La IA renueva a la mayoría y completa sus plantillas con agentes libres (su mercado completo llega en la Fase 8).
+
+**Directiva** (`src/engine/board.ts`)
+- Confianza (0-100) que se mueve con los resultados (pesa más ganar a un rival mejor), la marcha de los objetivos, las cuentas y el cumplimiento de objetivos al final de la temporada.
+- Peticiones: más presupuesto de fichajes o salarial y obras en las instalaciones (unos seis meses).
+- Exigencias de la directiva durante el mercado: vender para equilibrar salarios o reforzar la plantilla.
+- Aviso por debajo de 30 y despido por debajo de 12. Tras el despido, ofertas de clubes de menor nivel para seguir la carrera.
+
+**Pantallas nuevas**: Fichajes (buscar, seguimiento, operaciones, ojeadores, en venta y cesiones, historial), Finanzas y Directiva. La ficha del jugador muestra lo que sabes de él y permite ofertar, pedir cesión, renovar u ofrecerlo.
+
 ## Campo y equipaciones
 
 - **Campo de césped** (`src/ui/pitch.tsx`): verde con franjas de corte y todas las marcas reglamentarias a escala (105 × 68 m: áreas, área pequeña, punto y semicírculo de penalti, círculo central, arcos de córner y porterías). Se usa en el partido en directo, la pizarra táctica (en vertical), el mapa de posiciones del jugador y el mapa de calor.
@@ -288,7 +320,7 @@ Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manage
 3. ✅ Calendario, ligas, clasificación, bucle "Continuar" y bandeja de entrada.
 4. ✅ Interfaz base (menú, panel, plantilla, perfil) y tácticas.
 5. ✅ Pantalla de partido (2D, feed, estadísticas, ajustes, gritos) y post-partido.
-6. Fichajes, scouting, contratos, finanzas y directiva.
+6. ✅ Fichajes, scouting, contratos, finanzas y directiva.
 7. Entrenamiento, lesiones, moral, progresión y fin de temporada.
 8. IA de clubes, copas y torneos continentales, día de cierre, Data Hub y pulido.
 9. Conexión de la base de datos real: importar, convertir, verificar y calibrar.

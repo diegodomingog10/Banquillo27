@@ -10,6 +10,7 @@ import { Icon } from '../icons';
 import { attrBarColor, attrClass, Badge, Bar, Button, Card, cx, Dialog, Dots, money, ratingClass, Stat, toneFor } from '../kit';
 import { ClubLink } from './shared';
 import { CompareDialog } from './SquadScreen';
+import { ContractDialog, IncomingDialog, ListDialog, OfferDialog } from './market';
 
 const PITCH: Record<string, [number, number]> = {
   GK: [8, 50], LB: [26, 14], CB: [22, 50], RB: [26, 86], LWB: [40, 10], RWB: [40, 90], DM: [38, 50],
@@ -51,11 +52,33 @@ export function PlayerScreen() {
   const [reportOpen, setReportOpen] = useState(false);
   const [pickOpen, setPickOpen] = useState(false);
   const [compare, setCompare] = useState<[string, string] | null>(null);
+  const [offer, setOffer] = useState<'transfer' | 'loan' | null>(null);
+  const [listOpen, setListOpen] = useState(false);
+  const [contractDeal, setContractDeal] = useState<string | null>(null);
+  const [incomingOpen, setIncomingOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const id = nav.playerId;
   const load = () => { if (id) void game('player', { id }).then(setP); };
   useEffect(load, [id, dashboard?.date]);
   useEffect(() => { void game('squadTable').then(setSquad); }, []);
   if (!p) return <p className="text-sm text-muted">Cargando…</p>;
+  const mk = p.market;
+  const deal = p.deal;
+  const renew = async () => {
+    try {
+      const d = await game('renewal', { playerId: p.id });
+      if (d.status === 'negotiating') setContractDeal(d.id);
+      else setNotice(d.log.at(-1)?.text ?? 'No quiere renovar.');
+    } catch (e) { setNotice((e as Error).message); }
+  };
+  const report = async () => {
+    if (p.isUser || p.knowledge >= 100) { setReportOpen(true); return; }
+    try {
+      const r = await game('requestReport', { playerId: p.id });
+      setNotice(`${r.scout} preparará un informe completo antes del ${r.due}.`);
+      load();
+    } catch (e) { setNotice((e as Error).message); }
+  };
 
   const idx = squad.findIndex((r) => r.id === p.id);
   const prev = idx > 0 ? squad[idx - 1] : undefined;
@@ -107,16 +130,41 @@ export function PlayerScreen() {
       </Card>
 
       <div className="flex flex-wrap gap-2">
-        {p.isUser ? <>
-          <Button variant="primary" icon="docCheck" disabled title="Disponible con contratos y mercado (Fase 6)">Renovar contrato</Button>
-          <Button icon="transfers" disabled title="Disponible con el mercado (Fase 6)">Ofrecer a otros clubes</Button>
-          <Button icon="loan" disabled title="Disponible con el mercado (Fase 6)">Ceder</Button>
-        </> : <Button variant="primary" icon="transfers" disabled title="Disponible con el mercado (Fase 6)">Hacer una oferta</Button>}
-        <Button icon="search" onClick={() => setReportOpen(true)}>Pedir informe</Button>
+        {p.isUser && mk.kind === 'own' ? <>
+          <Button variant="primary" icon="docCheck" disabled={p.loan} title={p.loan ? 'Está cedido: el contrato es de su club' : undefined} onClick={() => void renew()}>Renovar contrato</Button>
+          <Button icon="transfers" disabled={p.loan} onClick={() => setListOpen(true)}>{mk.listed ? (mk.listed.loan ? 'Cedible' : `En venta · ${money(mk.listed.asking ?? 0)}`) : 'Ofrecer a otros clubes'}</Button>
+          {mk.loanedIn?.buyOption ? <Button icon="loan" onClick={() => void game('exerciseOption', { playerId: p.id }).then(load).catch((e: Error) => setNotice(e.message))}>Ejecutar opción ({money(mk.loanedIn.buyOption)})</Button> : null}
+        </> : mk.kind === 'other' ? <>
+          <Button variant="primary" icon="transfers" onClick={() => setOffer('transfer')}>{mk.free ? 'Fichar (libre)' : 'Hacer una oferta'}</Button>
+          {!mk.free && <Button icon="loan" onClick={() => setOffer('loan')}>Pedir cesión</Button>}
+        </> : null}
+        <Button icon="search" disabled={p.reportPending} onClick={() => void report()}>{p.reportPending ? 'Informe en camino' : p.isUser || p.knowledge >= 100 ? 'Ver informe' : 'Pedir informe'}</Button>
         <Button icon="star" variant={p.shortlisted ? 'soft' : 'secondary'} onClick={() => void game('toggleShortlist', { id: p.id }).then(load)}>{p.shortlisted ? 'En seguimiento' : 'Seguir'}</Button>
         <div className="flex-1" />
         <Button variant="soft" icon="compare" onClick={() => setPickOpen(true)}>Comparar con…</Button>
       </div>
+      {notice && <p role="status" className="rounded-xl border border-line2 bg-card2 px-4 py-2.5 text-[13px] text-soft">{notice}</p>}
+      {deal && (
+        <Card className="flex flex-wrap items-center gap-3 !py-3">
+          <Icon name="transfers" className="text-accent-text" />
+          <span className="flex-1 text-[13px]">
+            <b>{deal.incoming ? `Oferta de ${deal.buyer}` : deal.kind === 'renewal' ? 'Renovación' : `Negociación con ${deal.seller}`}</b>
+            <span className="text-muted"> · {deal.log.at(-1)?.text ?? ''}</span>
+          </span>
+          {deal.status === 'negotiating' && <Button size="sm" variant="primary" onClick={() => setContractDeal(deal.id)}>Negociar contrato</Button>}
+          {deal.status === 'countered' && <Button size="sm" variant="primary" onClick={() => void game('acceptCounter', { dealId: deal.id }).then((d) => { load(); if (d.status === 'negotiating') setContractDeal(d.id); }).catch((e: Error) => setNotice(e.message))}>Aceptar condiciones ({money(deal.counter?.fee ?? 0)})</Button>}
+          {deal.status === 'pendingUser' && <Button size="sm" variant="primary" onClick={() => setIncomingOpen(true)}>Responder</Button>}
+        </Card>
+      )}
+      {!p.isUser && mk.kind === 'other' && (
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-muted">
+          <span>Conocimiento: <b className="text-text">{p.knowledge} %</b>{p.attrError > 0 && <> · margen de error ±{p.attrError}</>}</span>
+          {mk.asking !== null && <span>Precio estimado: <b className="text-text">{money(mk.asking)}</b></span>}
+          <span>Interés en tu club: <b className={mk.interest >= 60 ? 'text-good-text' : mk.interest >= 35 ? 'text-warn' : 'text-bad-text'}>{mk.interest >= 60 ? 'alto' : mk.interest >= 35 ? 'medio' : 'bajo'}</b></span>
+          {mk.recommendation && <span>Valoración del ojeador: <b className="text-text">{mk.recommendation}</b></span>}
+          {!mk.windowOpen && !mk.free && <span className="text-warn">Mercado cerrado: los acuerdos serán oficiales al abrirse.</span>}
+        </div>
+      )}
 
       <div className="grid gap-[18px]" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         <Card title="Atributos" icon="sliders" className="lg:col-span-2" actions={
@@ -133,11 +181,14 @@ export function PlayerScreen() {
                 <div className="mb-2 text-xs uppercase tracking-[0.08em] text-muted">{title}</div>
                 {attrs.map((a) => {
                   const v = p.attributes[a];
+                  const err = p.attrError;
                   return (
                     <div key={a} className="flex items-center gap-2.5 py-1 text-[13px]">
                       <span className="flex-1 text-soft">{t(`attr.${a}`)}</span>
-                      <span className="h-1 w-[54px] rounded-sm bg-[#2A2536]"><span className="block h-1 rounded-sm" style={{ width: `${v * 5}%`, background: attrBarColor(v) }} /></span>
-                      <span className={cx('num w-7 text-right font-bold', attrClass(v))}>{v}{est.has(a) && '*'}</span>
+                      <span className="h-1 w-[54px] rounded-sm bg-[#2A2536]">{v !== null && <span className="block h-1 rounded-sm" style={{ width: `${v * 5}%`, background: attrBarColor(v) }} />}</span>
+                      <span className={cx('num w-12 text-right font-bold', v === null ? 'text-faint' : attrClass(v))} title={v === null ? 'Desconocido' : err ? `Entre ${Math.max(1, v - err)} y ${Math.min(20, v + err)}` : undefined}>
+                        {v === null ? '?' : err ? `${Math.max(1, v - err)}-${Math.min(20, v + err)}` : v}{v !== null && est.has(a) && '*'}
+                      </span>
                     </div>
                   );
                 })}
@@ -148,7 +199,7 @@ export function PlayerScreen() {
 
         <div className="flex flex-col gap-[18px]">
           <Card title="Perfil" icon="radar">
-            <Radar values={p.radar} average={p.radarAverage.values} label={`Gráfico radar de ${p.name}`} />
+            {p.radar ? <Radar values={p.radar} average={p.radarAverage.values} label={`Gráfico radar de ${p.name}`} /> : <p className="py-10 text-center text-[13px] text-muted">Hace falta ojearle más para conocer su perfil.</p>}
             <div className="flex flex-wrap gap-4 text-xs text-muted">
               <span className="flex items-center gap-1.5"><span className="h-[3px] w-3.5 bg-accent-soft" />{p.lastName}</span>
               <span className="flex items-center gap-1.5"><span className="w-3.5 border-t-2 border-dashed border-faint" />{p.radarAverage.label}</span>
@@ -211,9 +262,15 @@ export function PlayerScreen() {
         <div className="flex flex-col gap-3 text-sm">
           <div className="flex flex-wrap gap-6"><Stat label="Nivel actual" value={<Dots value={p.caStars} />} /><Stat label="Potencial" value={<Dots value={p.paStars} variant="potential" />} /><Stat label="Mejor rol" value={<span className="text-base">{p.report.bestRole ?? '—'}</span>} /></div>
           <p className="leading-relaxed text-soft">{p.report.text}</p>
-          <p className="text-xs text-muted">Los ojeadores y los informes con margen de error llegan con el scouting (Fase 6). De tus jugadores, el cuerpo técnico conoce todos los datos.</p>
+          <p className="text-xs text-muted">{p.isUser ? 'De tus jugadores, el cuerpo técnico conoce todos los datos.' : `Conocimiento del jugador: ${p.knowledge} %.`}</p>
         </div>
       </Dialog>
+      {offer && mk.kind === 'other' && <OfferDialog open onClose={() => setOffer(null)} loan={offer === 'loan'}
+        player={{ id: p.id, name: p.name, value: p.value, asking: mk.asking, club: p.club?.name ?? null, free: mk.free }}
+        onSent={(d) => { setOffer(null); load(); if (d.status === 'negotiating') setContractDeal(d.id); else setNotice(d.status === 'collapsed' ? d.log.at(-1)?.text ?? 'No hay acuerdo.' : 'Oferta enviada: el club responderá mañana.'); }} />}
+      {listOpen && mk.kind === 'own' && <ListDialog open onClose={() => setListOpen(false)} onSaved={load} player={{ id: p.id, name: p.name, value: p.value, listed: mk.listed }} />}
+      <ContractDialog dealId={contractDeal} onClose={() => { setContractDeal(null); load(); }} onDone={load} />
+      <IncomingDialog deal={incomingOpen ? deal : null} onClose={() => setIncomingOpen(false)} onDone={load} />
       <Dialog open={pickOpen} onClose={() => setPickOpen(false)} title="Comparar con…" width={480}>
         <ul className="flex max-h-[60vh] flex-col gap-1 overflow-auto">
           {squad.filter((r) => r.id !== p.id).sort((a, b) => Number(b.group === squad[idx]?.group) - Number(a.group === squad[idx]?.group)).map((r) => (

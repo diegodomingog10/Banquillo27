@@ -14,6 +14,8 @@ import { indexes, leagueOf, leagueTable, type GameState } from './game';
 import { isAvailable, positionRating, slotScore } from './lineup';
 import { resolveUserLineup } from './manager';
 import { fixtureView } from './views';
+import { knowledgeOf, recommendation, scoutedAbility, scoutedAttributes } from './scouting';
+import { askingPrice, playerInterest, ROLE_LABEL, windowOpen, dealView } from './transfers';
 
 const nameOf = (p: Player) => p.commonName ?? `${p.firstName} ${p.lastName}`;
 
@@ -105,6 +107,14 @@ export function playerProfile(state: GameState, playerId: string) {
   }
   const current = p.seasonStats.reduce((a, s) => ({ apps: a.apps + s.apps, goals: a.goals + s.goals, rating: a.rating + s.avgRating * s.apps }), { apps: 0, goals: 0, rating: 0 });
   const injuryRisk = p.attributes.injuryProneness * (1.6 - p.condition / 100);
+  const isUser = p.clubId === state.userClubId;
+  const scouted = scoutedAttributes(state, p);
+  const userBest = Math.max(1, ...(ix.squads.get(state.userClubId) ?? []).map((x) => x.ca));
+  const ability = isUser ? null : scoutedAbility(state, p, userBest);
+  const tr = state.transfers;
+  const deal = tr.deals.find((d) => d.playerId === p.id && (d.buyerId === state.userClubId || d.sellerId === state.userClubId) && ['pendingClub', 'countered', 'negotiating', 'agreed', 'pendingUser'].includes(d.status));
+  const loan = tr.loans.find((l) => l.playerId === p.id);
+  const known = scouted.level >= 40;
   return {
     id: p.id,
     name: nameOf(p),
@@ -118,13 +128,33 @@ export function playerProfile(state: GameState, playerId: string) {
     weightKg: p.weightKg,
     foot: p.preferredFoot,
     club: club ? { id: club.id, name: club.name } : null,
-    isUser: p.clubId === state.userClubId,
+    isUser,
+    knowledge: scouted.level,
+    attrError: scouted.error,
+    personalityKnown: isUser || scouted.personalityKnown,
+    caRange: ability?.ca ?? null,
+    paRange: ability?.pa ?? null,
+    market: isUser ? {
+      kind: 'own' as const,
+      listed: tr.listed[p.id] ?? null,
+      role: tr.roles[p.id] ? ROLE_LABEL[tr.roles[p.id]!] : null,
+      loanedIn: loan && loan.borrowerId === state.userClubId ? { owner: ix.clubs.get(loan.ownerId)?.name ?? '', buyOption: loan.buyOption, until: loan.until } : null,
+    } : {
+      kind: 'other' as const,
+      asking: p.clubId && known ? askingPrice(state, p, state.userClubId) : null,
+      interest: playerInterest(state, p, state.userClubId),
+      recommendation: known ? recommendation(state, p) : null,
+      free: !p.clubId,
+      windowOpen: windowOpen(state),
+    },
+    deal: deal ? dealView(state, deal) : null,
+    reportPending: state.scouting.requests.some((r) => r.playerId === p.id),
     shortlisted: state.ui.shortlist.includes(p.id),
     positions: p.positions.map((x) => ({ position: x.position, rating: x.rating })).sort((a, b) => b.rating - a.rating),
     mainPosition: mainPosition(p.positions),
-    personality: t(`personality.${p.personality}`),
-    caStars: stars(p.ca, best),
-    paStars: stars(p.pa, best),
+    personality: isUser || scouted.personalityKnown ? t(`personality.${p.personality}`) : 'Personalidad desconocida',
+    caStars: ability ? (ability.ca[0] + ability.ca[1]) / 2 : stars(p.ca, best),
+    paStars: ability ? (ability.pa[0] + ability.pa[1]) / 2 : stars(p.pa, best),
     value: p.marketValue,
     wage: p.contract?.wage ?? null,
     contractExpires: p.contract?.expires ?? null,
@@ -133,9 +163,9 @@ export function playerProfile(state: GameState, playerId: string) {
     avgRating: current.apps ? Math.round((current.rating / current.apps) * 100) / 100 : null,
     apps: current.apps,
     goals: current.goals,
-    attributes: Object.fromEntries(ALL_ATTRS.map((a) => [a, p.attributes[a]])) as Record<AttrKey, number>,
+    attributes: Object.fromEntries(ALL_ATTRS.map((a) => [a, isUser ? p.attributes[a] : scouted.attributes[a].value])) as Record<AttrKey, number | null>,
     estimated: p.estimated.filter((e) => e.startsWith('attributes.')).map((e) => e.slice(11)),
-    radar: radarFor(p),
+    radar: isUser || scouted.level >= 50 ? radarFor(p) : null,
     radarAverage: leagueAverageRadar(state, p),
     status: {
       condition: Math.round(p.condition),
@@ -146,7 +176,7 @@ export function playerProfile(state: GameState, playerId: string) {
       suspended: p.cards.suspendedMatches,
       yellow: p.cards.yellow,
     },
-    report: staffReport(p),
+    report: isUser || known ? staffReport(p) : { text: 'Sabemos poco de este jugador. Pide un informe a los ojeadores.', bestRole: null, strengths: [], weaknesses: [] } as unknown as ReturnType<typeof staffReport>,
     history: [...bySeason.values()].map((r) => ({ ...r, rating: Math.round(r.rating * 100) / 100 })).reverse(),
     form: p.form,
   };
@@ -293,7 +323,10 @@ const SCREENS: { id: string; label: string; keywords: string }[] = [
   { id: 'squad', label: 'Plantilla', keywords: 'plantilla jugadores equipo' },
   { id: 'tactics', label: 'Tácticas', keywords: 'tacticas alineacion formacion' },
   { id: 'competitions', label: 'Competiciones', keywords: 'competiciones clasificacion liga copa calendario' },
-  { id: 'club', label: 'Club', keywords: 'club estadio directiva instalaciones' },
+  { id: 'club', label: 'Club', keywords: 'club estadio instalaciones equipaciones' },
+  { id: 'transfers', label: 'Fichajes', keywords: 'fichajes mercado traspasos ojeadores scouting cesiones' },
+  { id: 'finances', label: 'Finanzas', keywords: 'finanzas dinero presupuesto salarios ingresos gastos' },
+  { id: 'board', label: 'Directiva', keywords: 'directiva confianza objetivos peticiones' },
 ];
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
