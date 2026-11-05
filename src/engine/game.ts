@@ -29,6 +29,8 @@ import { initTraining, medicalDays, recoveryFactor, trainingDay, type TrainingSt
 import { initProgression, progressionDay, recordMinutes, seasonProgressReport, type ProgressionState } from './progression';
 import { dressingAfterMatch, dressingDay, initDressing, type DressingState } from './dressingRoom';
 import { retirements, seasonAwards, trimAiSquads, youthIntake, type SeasonAwards } from './seasonLife';
+import { aiClubsDay, type ManagerMove } from './aiClubs';
+import { initInternational, internationalDay, type InternationalState } from './international';
 import { afterContinentalFixture, aggregateFor, continentalDay, planContinental, qualifyContinental, roundName, type ContinentalState } from './continental';
 
 export const GAME_STATE_VERSION = 1;
@@ -110,6 +112,20 @@ export interface Manager {
   nationality: string | null;
 }
 
+export interface Career {
+  clubs: { clubId: string; name: string; from: string; to: string | null; matches: number; wins: number; draws: number; losses: number }[];
+  trophies: { season: string; competitionId: string; name: string; clubId: string }[];
+}
+
+/** Anota un título del usuario en su carrera. */
+export function recordTrophy(state: GameState, competitionId: string, clubId: string): void {
+  if (clubId !== state.userClubId) return;
+  const name = indexes(state).comps.get(competitionId)?.name ?? competitionId;
+  if (state.career.trophies.some((t) => t.season === state.season && t.competitionId === competitionId)) return;
+  state.career.trophies.push({ season: state.season, competitionId, name, clubId });
+  addMessage(state, { type: 'competition', priority: 'high', key: 'trophy', params: { cup: name } });
+}
+
 export interface GameState {
   version: number;
   id: string;
@@ -169,6 +185,12 @@ export interface GameState {
   awards: SeasonAwards[];
   /** Última hornada de canteranos del usuario. */
   youthIntake: { date: string; ids: string[] } | null;
+  /** Selecciones: convocatorias, internacionalidades, resultados. */
+  international: InternationalState;
+  /** Cambios de entrenador en los clubes de la IA. */
+  managerMoves: ManagerMove[];
+  /** Carrera del entrenador del usuario. */
+  career: Career;
   seq: number;
 }
 
@@ -375,6 +397,9 @@ export function newGame(setup: NewGameSetup): GameState {
     dressing: null as unknown as DressingState,
     awards: [],
     youthIntake: null,
+    international: null as unknown as InternationalState,
+    managerMoves: [],
+    career: { clubs: [{ clubId: club.id, name: club.name, from: world.meta.startDate, to: null, matches: 0, wins: 0, draws: 0, losses: 0 }], trophies: [] },
     seq: 0,
   };
   setupSeason(state, startYear);
@@ -385,6 +410,7 @@ export function newGame(setup: NewGameSetup): GameState {
   initTraining(state);
   initDressing(state);
   initProgression(state);
+  initInternational(state);
   state.userTactic = bestTacticFor(indexes(state).squads.get(club.id) ?? []);
   addMessage(state, {
     type: 'board', priority: 'urgent', key: 'welcome', sender: `Directiva de ${club.name}`,
@@ -672,6 +698,15 @@ function playFixture(state: GameState, f: Fixture, detail: 'fast' | 'full', play
     state.userMatches[f.id] = r.match;
     growFamiliarity(state, 2.5);
     boardAfterMatch(state, f);
+    const stint = state.career.clubs.at(-1);
+    if (stint && f.result) {
+      const my = f.homeId === state.userClubId ? f.result.homeGoals : f.result.awayGoals;
+      const their = f.homeId === state.userClubId ? f.result.awayGoals : f.result.homeGoals;
+      stint.matches++;
+      if (f.result.winnerId ? f.result.winnerId === state.userClubId : my > their) stint.wins++;
+      else if (my === their && !f.result.winnerId) stint.draws++;
+      else stint.losses++;
+    }
     dressingAfterMatch(state, f, r);
   }
   for (const p of suspendedBefore) p.cards.suspendedMatches = Math.max(0, p.cards.suspendedMatches - 1);
@@ -828,6 +863,7 @@ function afterFixture(state: GameState, f: Fixture): void {
     }
     if (f.round === 'cup:final') {
       cup.championId = f.result.winnerId;
+      if (f.result.winnerId) recordTrophy(state, f.competitionId, f.result.winnerId);
       const comp = indexes(state).comps.get(f.competitionId);
       news(state, 'cup', `${clubName(state, f.result.winnerId ?? '')} gana la ${comp?.name ?? 'copa'}`);
     }
@@ -964,6 +1000,8 @@ function dailyUpdate(state: GameState, playedToday: Set<string>): void {
     // Moral: vuelve poco a poco a su nivel normal
     p.morale = p.morale + (60 - p.morale) * 0.01;
   }
+  internationalDay(state);
+  aiClubsDay(state);
   trainingDay(state, playedToday);
   progressionDay(state);
   dressingDay(state);
@@ -992,6 +1030,7 @@ function processSeasonEnd(state: GameState): void {
     const table = leagueTable(state, comp.id);
     if (table.length === 0) continue;
     const champion = table[0]!;
+    recordTrophy(state, comp.id, champion.clubId);
     state.history.push({ season: state.season, competitionId: comp.id, championId: champion.clubId, table: table.map((r) => ({ clubId: r.clubId, position: r.position, points: r.points })) });
     news(state, 'champion', t('msg.champion.subject', { club: clubName(state, champion.clubId), league: comp.name }));
     if (comp.nationId === ix.clubs.get(state.userClubId)?.nationId) {

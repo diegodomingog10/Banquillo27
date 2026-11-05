@@ -8,7 +8,7 @@ import type { Competition } from '../data/schema';
 import { roundMoney } from '../data/ability';
 import { addDays, isoFromParts } from './date';
 import { credit } from './economy';
-import { addFixture, addMessage, indexes, nextId, rngFor, type Fixture, type GameState } from './game';
+import { addFixture, addMessage, indexes, nextId, recordTrophy, rngFor, type Fixture, type GameState } from './game';
 import { computeStandings, type StandingRow } from './standings';
 import { inRanges } from './calendar';
 
@@ -263,6 +263,7 @@ export function afterContinentalFixture(state: GameState, f: Fixture): void {
     }
     if (round.key === 'final') {
       cs.championId = tie.winnerId;
+      recordTrophy(state, cs.competitionId, tie.winnerId);
       state.news.unshift({ date: state.date, type: 'cup', text: `${ix.clubs.get(tie.winnerId)?.name ?? ''} gana la ${comp.name}` });
       credit(state, tie.winnerId, 'prizes', roundMoney((comp.prizes.byRound.at(-1) ?? 0) * 1.5));
     }

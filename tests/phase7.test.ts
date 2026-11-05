@@ -167,3 +167,25 @@ describe('torneos continentales', () => {
     if (totalA !== totalB) expect(r.winner).toBe(totalA > totalB ? 'away' : 'home');
   });
 });
+
+import { squadNeeds } from '../src/engine/aiClubs';
+import { internationalDay } from '../src/engine/international';
+describe('IA de clubes y selecciones', () => {
+  it('detecta huecos en la plantilla', () => {
+    const s = game();
+    const squad = indexes(s).squads.get(s.world.clubs[2]!.id)!;
+    const noGk = squad.filter((p) => p.positions[0]!.position !== 'GK' && !p.positions.some((x) => x.position === 'GK' && x.rating >= 18));
+    const needs = squadNeeds(noGk);
+    expect(needs[0]?.group).toBe('GK');
+  });
+  it('las selecciones convocan en el parón y suman internacionalidades', () => {
+    const s = game();
+    const b = s.calendar.internationalBreaks[0]!;
+    s.date = b.from; internationalDay(s);
+    const squads = Object.values(s.international.squads);
+    expect(squads.length).toBeGreaterThan(0);
+    expect(squads[0]!.length).toBeLessThanOrEqual(23);
+    s.date = b.to; internationalDay(s);
+    expect(Object.keys(s.international.caps).length).toBeGreaterThan(10);
+  });
+});

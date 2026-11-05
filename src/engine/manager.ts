@@ -12,6 +12,7 @@ import { initBoard } from './board';
 import { initTraining } from './training';
 import { initDressing } from './dressingRoom';
 import { initProgression } from './progression';
+import { initInternational } from './international';
 import { autoLineup, isAvailable, slotScore, type Lineup } from './lineup';
 import { clamp } from './rng';
 import { FORMATIONS, type TeamTactic } from './tactics';
@@ -58,6 +59,13 @@ export function ensureDefaults(state: GameState): GameState {
   if (!s.progression) initProgression(state);
   s.awards ??= [];
   (s as { continental?: GameState['continental'] }).continental ??= {};
+  // Fase 8: selecciones, cambios de entrenador y carrera
+  if (!(s as { international?: unknown }).international) initInternational(state);
+  (s as { managerMoves?: GameState['managerMoves'] }).managerMoves ??= [];
+  if (!(s as { career?: unknown }).career) {
+    const club = indexes(state).clubs.get(state.userClubId);
+    s.career = { clubs: [{ clubId: state.userClubId, name: club?.name ?? '', from: state.date, to: null, matches: 0, wins: 0, draws: 0, losses: 0 }], trophies: [] };
+  }
   if (s.youthIntake === undefined) s.youthIntake = null;
   return state;
 }

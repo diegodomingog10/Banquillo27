@@ -519,6 +519,21 @@ function moveClub(state: GameState, p: Player, toId: string, fee: number, loan: 
   invalidate(state);
 }
 
+/** Operación entre clubes de la IA (o fichaje de un libre): se cierra en el acto. */
+export function aiTransfer(state: GameState, playerId: string, buyerId: string, fee: number, opts: { installments?: number; loan?: boolean } = {}): Deal | null {
+  const p = indexes(state).players.get(playerId);
+  if (!p) return null;
+  const sellerId = p.clubId;
+  const terms: OfferTerms = opts.loan
+    ? { ...emptyTerms(), loan: { wageShare: 75, fee: 0, buyOption: null } }
+    : { ...emptyTerms(), fee: sellerId ? fee : 0, installments: opts.installments ?? 0 };
+  const deal = newDeal(state, { kind: opts.loan ? 'loan' : sellerId ? 'transfer' : 'free', playerId, buyerId, sellerId, terms, status: 'negotiating', respondOn: null, patience: 1 });
+  completeDeal(state, deal);
+  return deal;
+}
+
+export { rankIn, squadOf, isKey };
+
 function aiContract(state: GameState, deal: Deal): ContractTerms {
   const d = playerDemands(state, deal);
   return { ...d, wage: roundMoney(d.wage * 0.95) };
@@ -601,7 +616,7 @@ function aiInterestDay(state: GameState): void {
   for (const p of squadOf(state, user.id)) {
     if (p.contract?.type === 'loan') continue;
     const listed = state.transfers.listed[p.id];
-    const chance = 0.0035 * (listed ? 8 : 1) * (lastWindowDay ? 3 : 1) * (p.ca >= 120 ? 1.4 : 1);
+    const chance = 0.0015 * (listed ? 16 : 1) * (lastWindowDay ? 3 : 1) * (p.ca >= 120 ? 1.4 : 1);
     if (!rng.chance(chance)) continue;
     if (state.transfers.deals.some((d) => d.playerId === p.id && ['pendingUser', 'agreed', 'negotiating'].includes(d.status))) continue;
     const loan = !!listed?.loan;
@@ -734,8 +749,9 @@ export function rolloverContracts(state: GameState, newStart: string, nextYear: 
     if (!p.contract || p.contract.expires >= newStart || !p.clubId) continue;
     const age = ageAt(p.birthDate, newStart);
     if (p.clubId !== state.userClubId) {
-      // IA: renueva a casi todos los útiles (en la Fase 8 decidirá con más criterio)
-      const keep = age <= 32 && hashString(`renew:${p.id}:${nextYear}`) % 100 < 80;
+      // IA: renueva a los que cuentan (puesto en la plantilla y edad); el resto se va libre
+      const rank = rankIn(p, squadOf(state, p.clubId));
+      const keep = (rank <= 18 && age <= 32) || (rank <= 24 && age <= 23 && p.pa > p.ca + 10) || hashString(`renew:${p.id}:${nextYear}`) % 100 < 25;
       if (keep) { p.contract.expires = isoFromParts(nextYear + (age <= 28 ? 3 : 1), 6, 30); continue; }
     }
     if (p.clubId === state.userClubId) freed.push(nameOf(p));
@@ -764,19 +780,19 @@ function groupOf(p: Player): 'GK' | 'DEF' | 'MID' | 'ATT' {
  * Mantenimiento mínimo de las plantillas de la IA (hasta la Fase 8): los clubes con
  * huecos fichan agentes libres de su nivel para tener al menos 22 jugadores.
  */
-export function aiFillSquads(state: GameState): void {
+export function aiFillSquads(state: GameState, target = 22): void {
   const ix = indexes(state);
   const free = state.world.players.filter((p) => !p.clubId && ageAt(p.birthDate, state.date) <= 34).sort((a, b) => b.ca - a.ca);
   const taken = new Set<string>();
   const clubs = state.world.clubs.filter((c) => c.id !== state.userClubId).sort((a, b) => b.reputation - a.reputation);
   for (const club of clubs) {
     const squad = squadOf(state, club.id);
-    if (squad.length >= 22) continue;
+    if (squad.length >= target) continue;
     const level = squad.map((p) => p.ca).sort((a, b) => b - a).slice(0, 16);
     const median = level[Math.floor(level.length / 2)] ?? 80;
     const counts = { GK: 0, DEF: 0, MID: 0, ATT: 0 };
     for (const p of squad) counts[groupOf(p)]++;
-    let need = 22 - squad.length;
+    let need = target - squad.length;
     const wanted = (p: Player) => counts[groupOf(p)] < MIN_BY_GROUP[groupOf(p)];
     for (const pass of [0, 1]) {
       for (const p of free) {

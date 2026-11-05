@@ -282,6 +282,10 @@ export const es = {
     boardWantsSignings: { subject: 'La directiva espera refuerzos', body: 'Los resultados no acompañan y hay {budget} disponibles. La directiva espera fichajes antes del {deadline}.' },
     facilityDone: { subject: 'Obras terminadas', body: '{facility} han mejorado un nivel.' },
     continentalDraw: { subject: 'Sorteo de la {cup}: grupo {group}', body: 'Rivales en el grupo {group}: {rivals}.\n\n{pots}\n\n{groups}' },
+    managerSacked: { subject: 'Cambio de entrenador en la liga', body: '{text}.' },
+    callUps: { subject: 'Convocatorias internacionales', body: 'Se van con sus selecciones ({count}): {names}. Volverán tras el parón.' },
+    internationalInjury: { subject: '{player} vuelve lesionado de su selección', body: '{player} sufre: {injury}. Baja estimada: {days} días.' },
+    trophy: { subject: '¡Campeones de la {cup}!', body: 'El club levanta el trofeo de la {cup}. Un título para la historia y para tu carrera.' },
     // Fase 7: entrenamiento y progresión
     trainingInjury: { subject: '{player} se lesiona entrenando', body: '{player} sufre: {injury} en el entrenamiento (carga {load}). Baja estimada: {days} días.' },
     positionLearned: { subject: '{player} progresa en su nueva posición', body: '{player} ya tiene un nivel {level}/20 como {position}.' },

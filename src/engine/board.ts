@@ -214,6 +214,10 @@ export function boardRequest(state: GameState, kind: BoardRequestKind): { accept
 export function acceptJob(state: GameState, clubId: string): void {
   const b = state.board;
   if (!b.fired || !b.offers.includes(clubId)) throw new Error('Ese club no te ha ofrecido el puesto');
+  const prev = state.career.clubs.at(-1);
+  if (prev && !prev.to) prev.to = state.date;
+  const next = indexes(state).clubs.get(clubId)!;
+  state.career.clubs.push({ clubId, name: next.name, from: state.date, to: null, matches: 0, wins: 0, draws: 0, losses: 0 });
   state.userClubId = clubId;
   state.userLineup = null;
   state.postMatch = null;
