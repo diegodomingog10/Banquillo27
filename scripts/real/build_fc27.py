@@ -179,7 +179,7 @@ ES_NAT = {'España': 'Spain', 'Países Bajos': 'Holland', 'Rumanía': 'Romania',
 def read_roster(spec):
     """Plantilla de un club: un CSV o una hoja de un Excel («libro.xlsx#Hoja»). Devuelve (filas, categorías)."""
     if '.xlsx' not in spec:
-        return list(csv.DictReader(open(os.path.join(args.manual, spec), newline='', encoding='utf-8'))), {}
+        return list(csv.DictReader(open(os.path.join(args.manual, spec), newline='', encoding='utf-8'))), {}, {}
     import datetime
     from openpyxl import load_workbook
     book, sheet = spec.split('#', 1)
@@ -200,19 +200,24 @@ def read_roster(spec):
                 row[h] = '' if v is None else str(v).strip()
             out.append(row)
         return out
+    perfiles = {}
+    if 'Perfiles' in wb.sheetnames:
+        for c in table(wb['Perfiles']):
+            if c.get('perfil'):
+                perfiles[c['perfil']] = (c.get('grupo', ''), [float(c.get(f) or 0) for f in ('ritmo', 'tiro', 'pase', 'regate', 'defensa', 'fisico')])
     cats = {}
     if 'Categorías' in wb.sheetnames:
         for c in table(wb['Categorías']):
             if c.get('categoria'):
                 cats[c['categoria']] = (float(c['nivel_base']), float(c['partidos_liga']))
-    return [r for r in table(wb[sheet]) if r.get('nombre')], cats
+    return [r for r in table(wb[sheet]) if r.get('nombre')], cats, perfiles
 
 MANUAL = []
 if os.path.isdir(args.manual):
     for fn in sorted(os.listdir(args.manual)):
         if fn.endswith('.json'):
             m = json.load(open(os.path.join(args.manual, fn), encoding='utf-8'))
-            m['rows'], m['cats'] = read_roster(m['jugadores'])
+            m['rows'], m['cats'], m['perfiles'] = read_roster(m['jugadores'])
             MANUAL.append(m)
 manual_extra = []  # jugadores sin datos de EA: se crean con nivel objetivo
 manual_clubs = {m['club']: m for m in MANUAL}
@@ -229,6 +234,8 @@ for m in MANUAL:
         if len(hit) == 1:
             hit[0]['club'] = m['club']
             hit[0]['league'] = m['liga_ea']
+            if num(row.get('nivel_ea')) is not None:
+                hit[0]['_force'] = num(row.get('nivel_ea'))
         else:
             manual_extra.append((m, row))
 
@@ -390,11 +397,27 @@ def age_at(dob):
     y, m, d = (int(x) for x in dob.split('-'))
     return REF[0] - y - ((REF[1], REF[2]) < (m, d))
 
+EA_DETAIL = [k for k in fc[0] if k.split('_')[0] in ('attacking', 'skill', 'movement', 'power', 'mentality', 'defending', 'goalkeeping')]
+
+def shift_ea_row(r, level):
+    """Jugador de EA con nivel forzado en el Excel: sube o baja sus atributos (los de portero, si es portero) hasta ese nivel."""
+    delta = level - num(r['overall_rating'], level)
+    gk = r['position'] == 'GK'
+    for k in EA_DETAIL:
+        use = (k.startswith('goalkeeping') or k == 'movement_reactions') if gk else not k.startswith('goalkeeping')
+        if use:
+            v = num(r.get(k))
+            if v is not None:
+                r[k] = str(max(1, min(99, round(v + delta))))
+    r['overall_rating'] = str(level)
+
 players_out = []
 matched = 0
 for r in fc:
     dob = r['birthdate']
     age = age_at(dob) if dob else 26
+    if r.get('_force'):
+        shift_ea_row(r, r['_force'])
     a, alts, wf = attrs_of(r, age)
     t = tm_match(r)
     if t:
@@ -451,6 +474,110 @@ def manual_level(m, row):
     est = num(row.get('nivel_estimado'))
     return (est if est is not None else 60), 'estimado'
 
+# ---------------------------------------------------------------- perfil detallado de los jugadores añadidos a mano
+# Cada jugador toma los atributos detallados de los 15 jugadores de EA más parecidos: misma demarcación y
+# valores de carta (ritmo, tiro, pase, regate, defensa, físico) y altura cercanos, corregidos a su nivel.
+# Así un lateral ofensivo se parece a los laterales ofensivos reales de EA y no a una plantilla genérica.
+import numpy as np
+FACES = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physicality']
+FACE_ES = ['ritmo', 'tiro', 'pase', 'regate', 'defensa', 'fisico']
+GROUP = {'GK': 'GK', 'CB': 'CB', 'LB': 'FB', 'RB': 'FB', 'LWB': 'FB', 'RWB': 'FB', 'CDM': 'DM', 'DM': 'DM', 'CM': 'CM', 'CAM': 'AM',
+         'AM': 'AM', 'LM': 'W', 'RM': 'W', 'LW': 'W', 'RW': 'W', 'ST': 'ST', 'CF': 'ST'}
+EA_CODE = {'DM': 'CDM', 'AM': 'CAM'}
+POOL = {}
+_by_group = collections.defaultdict(list)
+for r in fc:
+    if r['pace'] and r['overall_rating']:
+        _by_group[GROUP.get(r['position'], 'CM')].append(r)
+for g, rs in _by_group.items():
+    X = np.array([[num(r[f], 50) for f in FACES] for r in rs], float)
+    y = np.array([num(r['overall_rating'], 60) for r in rs], float)
+    H = np.array([num(r.get('height_cm'), np.nan) for r in rs], float)
+    D = np.array([[num(r.get(k), 50) for k in EA_DETAIL] for r in rs], float)
+    coef = np.linalg.lstsq(np.c_[np.ones(len(X)), X], y, rcond=None)[0]
+    SM = np.array([num(r['skill_moves'], 2) for r in rs], float)
+    WF = np.array([num(r['weak_foot'], 3) for r in rs], float)
+    POOL[g] = (X, y, H, D, coef, SM, WF)
+
+# Rasgos (columna «rasgos» del Excel, separados por comas; con «-» delante restan)
+TAG_EA = {
+    'velocidad': ['movement_acceleration', 'movement_sprint_speed'], 'regate': ['skill_dribbling', 'movement_agility', 'skill_ball_control'],
+    'centros': ['attacking_crossing', 'skill_curve'], 'cabeza': ['attacking_heading_accuracy', 'power_jumping'],
+    'remate': ['attacking_finishing', 'mentality_positioning', 'attacking_volleys'], 'disparo lejano': ['power_long_shots', 'power_shot_power'],
+    'pase': ['attacking_short_passing', 'skill_long_passing'], 'vision': ['mentality_vision', 'skill_long_passing'],
+    'faltas': ['skill_fk_accuracy', 'skill_curve'], 'penaltis': ['mentality_penalties'], 'entradas': ['defending_standing_tackle', 'defending_sliding_tackle'],
+    'colocacion': ['defending_awareness', 'mentality_interceptions'], 'fisico': ['power_strength', 'mentality_aggression'],
+    'resistencia': ['power_stamina'], 'tecnica': ['skill_ball_control', 'skill_dribbling', 'skill_curve'], 'agilidad': ['movement_agility', 'movement_balance'],
+    'reflejos': ['goalkeeping_reflexes', 'goalkeeping_diving'], 'juego de pies': ['goalkeeping_kicking', 'attacking_short_passing', 'skill_long_passing'],
+    'blocaje': ['goalkeeping_handling'], 'colocacion portero': ['goalkeeping_positioning'],
+}
+TAG_FM = {'lider': {'leadership': 4}, 'trabajador': {'workRate': 3, 'teamwork': 2}, 'caracter': {'determination': 3, 'bravery': 2},
+          'profesional': {'professionalism': 3}, 'regular': {'consistency': 3}, 'irregular': {'consistency': -4}, 'fragil': {'injuryProneness': 4},
+          'polivalente': {'versatility': 4}, 'competitivo': {'importantMatches': 3, 'determination': 2}}
+TAG_STEP = 7  # en escala EA (≈ 1,5 puntos en la escala 1-20)
+
+def tags_of(row):
+    out = []
+    for t in (row.get('rasgos') or '').split(','):
+        t = t.strip()
+        if t:
+            sign = -1 if t.startswith('-') else 1
+            out.append((norm(t.lstrip('-+ ')), sign))
+    return out
+
+def player_faces(m, row, level, group):
+    """Valores de carta del jugador: los del Excel o, si faltan, nivel + desplazamientos de su perfil; corregidos a su nivel."""
+    perf = m['perfiles'].get(row.get('perfil', '')) or m['perfiles'].get(DEFAULT_PERFIL.get(group, ''))
+    offs = perf[1] if perf else [0] * 6
+    faces = np.array([num(row.get(f), level + o) for f, o in zip(FACE_ES, offs)], float)
+    coef = POOL[group][4]
+    faces += (level - (coef[0] + coef[1:] @ faces)) / coef[1:].sum()
+    return np.clip(faces, 20, 99)
+
+DEFAULT_PERFIL = {'GK': 'Portero equilibrado', 'CB': 'Central equilibrado', 'FB': 'Lateral equilibrado', 'DM': 'Pivote equilibrado',
+                  'CM': 'Mediocentro equilibrado', 'AM': 'Mediapunta equilibrado', 'W': 'Extremo equilibrado', 'ST': 'Delantero equilibrado'}
+
+def manual_template(m, row, level, pid, main, height, foot):
+    """Fila «tipo EA» del jugador a partir de sus vecinos en la base de EA."""
+    group = GROUP.get(main, 'CM')
+    X, y, H, D, coef, SM, WF = POOL[group]
+    faces = player_faces(m, row, level, group)
+    d2 = ((X - faces) ** 2).sum(1)
+    idx = np.argsort(d2)[:15]
+    det = D[idx].mean(0) + (level - y[idx].mean())
+    col = {k: i for i, k in enumerate(EA_DETAIL)}
+    # EA FC 27 no trae la altura: un jugador más alto (o más bajo) que la media de su demarcación gana (o pierde) juego aéreo
+    if height:
+        dh = (height - HEIGHT_OF[group]) * 0.6
+        for k in ('attacking_heading_accuracy', 'power_jumping'):
+            det[col[k]] += dh
+    for tag, sign in tags_of(row):
+        for k in TAG_EA.get(tag, []):
+            det[col[k]] += sign * TAG_STEP
+    fake = {k: str(int(round(max(1, min(99, v))))) for k, v in zip(EA_DETAIL, det)}
+    fake.update({f: str(int(round(v))) for f, v in zip(FACES, faces)})
+    fake.update({'player_id': pid, 'overall_rating': str(level), 'position': EA_CODE.get(main, main),
+                 'skill_moves': str(int(round(np.median(SM[idx])))), 'weak_foot': str(int(round(np.median(WF[idx])))),
+                 'preferred_foot': 'Left' if foot == 'left' else 'Right'})
+    if foot == 'both':
+        fake['weak_foot'] = '5'
+    return fake, HEIGHT_OF[group]
+
+# Altura media por demarcación (Transfermarkt, jugadores con altura conocida)
+_hs = collections.defaultdict(list)
+_TM_GROUP = {'Goalkeeper': 'GK', 'Centre-Back': 'CB', 'Left-Back': 'FB', 'Right-Back': 'FB', 'Defensive Midfield': 'DM', 'Central Midfield': 'CM',
+             'Attacking Midfield': 'AM', 'Left Winger': 'W', 'Right Winger': 'W', 'Left Midfield': 'W', 'Right Midfield': 'W',
+             'Centre-Forward': 'ST', 'Second Striker': 'ST'}
+for t in tm_players:
+    h = num(t.get('height_in_cm'))
+    if h and t.get('sub_position') in _TM_GROUP:
+        _hs[_TM_GROUP[t['sub_position']]].append(h)
+HEIGHT_OF = {g: float(np.median(v)) for g, v in _hs.items()}
+for g in ('GK', 'CB', 'FB', 'DM', 'CM', 'AM', 'W', 'ST'):
+    HEIGHT_OF.setdefault(g, 181.0)
+
+FOOT_ES = {'zurdo': 'left', 'izquierdo': 'left', 'diestro': 'right', 'derecho': 'right', 'ambidiestro': 'both', 'ambos': 'both'}
+
 used_ids = set()
 for m, row in manual_extra:
     toks = [t for t in norm(row['nombre']).split() if len(t) > 2]
@@ -462,20 +589,30 @@ for m, row in manual_extra:
     while pid in used_ids:
         pid += '_' + (row.get('dorsal') or 'x')
     used_ids.add(pid)
+    height = num(row.get('altura_cm')) or (num(t['height_in_cm']) if t and t['height_in_cm'] else None)
+    foot = FOOT_ES.get(norm(row.get('pie', '')).strip()) or (t['foot'] if t and t['foot'] in ('left', 'right', 'both') else None) \
+        or ('left' if pos[0] in ('LB', 'LWB', 'LM') else 'right')
+    fake, h_nb = manual_template(m, row, level, pid, pos[0], height, foot)
+    a, _, wf = attrs_of(fake, age_at(row['nacimiento']) if row.get('nacimiento') else 26)
+    for tag, sign in tags_of(row):
+        for k, v in TAG_FM.get(tag, {}).items():
+            a[k] = max(1, min(20, a[k] + sign * v))
+    weak = max(1, min(20, int(wf * 4)))
     out = {k: '' for k in players_out[0]}
+    out.update({k: a.get(k) for k in ATTR_COLS})
     out.update({
         'id': pid,
         'first_name': parts[0], 'last_name': ' '.join(parts[1:]) or parts[0], 'common_name': row['nombre'] if len(parts) == 1 else '',
         'birth_date': row['nacimiento'], 'nationality': ES_NAT.get(row['nacionalidad'], row['nacionalidad']),
-        'height_cm': (t['height_in_cm'] if t and t['height_in_cm'] else ''),
-        'foot': (t['foot'] if t and t['foot'] in ('left', 'right', 'both') else ''),
+        'height_cm': int(height or h_nb or 180),
+        'foot': foot, 'foot_left': 20 if foot in ('left', 'both') else weak, 'foot_right': 20 if foot in ('right', 'both') else weak,
         'club_id': f"cl_{slug(m['club'])}",
         'positions': ';'.join([pos[0]] + [f'{q}:15' for q in pos[1:]]),
         'market_value': (t['market_value_in_eur'] if t and t['market_value_in_eur'] else ''),
         'contract_expires': f"{str(row['contrato'])[:4]}-06-30" if row.get('contrato') else '',
         'external_id': 'manual' + (f";tm:{t['player_id']}" if t else ''),
     })
-    out['ca'] = level_ca(level)
+    out['ca'] = ''  # el importador la calcula con los atributos, como para los jugadores de EA
     out['_level'] = level
     players_out.append(out)
 for row in players_out:
