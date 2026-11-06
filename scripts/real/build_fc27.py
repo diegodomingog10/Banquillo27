@@ -547,12 +547,8 @@ def tags_of(row):
     return out
 
 def apply_tags(det, tags, level, group):
-    """Aplica los rasgos a los atributos detallados (escala EA). El reequilibrio para mantener el nivel se hace
-    después, en la escala del juego (rebalance_ca), que es la que cuenta para la CA."""
-    col = {k: i for i, k in enumerate(EA_DETAIL)}
-    for tag, sign in tags:
-        for k in TAG_EA.get(tag, []):
-            det[col[k]] += sign * TAG_STEP
+    """Antes sumaba puntos fijos en escala EA; ahora los rasgos se aplican en la escala del juego y relativos a los
+    jugadores de su nivel (apply_relative). Se deja para recortar valores."""
     return np.clip(det, 1, 99)
 
 def fixed_of(row):
@@ -620,6 +616,31 @@ def rebalance_ca(a, main, target, tags=()):
             break
         k = order[i % len(order)]
         a[k] = max(1, min(20, a[k] - (1 if diff > 0 else -1)))
+
+# Los rasgos describen al jugador comparado con los de SU nivel (p. ej. 1RFEF/Segunda), no con la élite:
+# cada rasgo coloca sus atributos en un percentil de los jugadores reales de EA de su misma demarcación y CA parecida.
+PCT = {3: 97, 2: 90, 1: 75, -1: 25, -2: 10, -3: 3}
+_peers = collections.defaultdict(list)
+for _row in players_out:
+    if _row['id'].startswith('ea_'):
+        _main = _row['positions'].split(';')[0].split(':')[0]
+        _a = {k: num(_row[k], 10) for k in ATTR_COLS}
+        _peers[_caw['groupOf'].get(_main, 'CM')].append((game_ca(_a, _main), _a))
+
+def peer_value(main, ca, attr, sign):
+    rs = _peers[_caw['groupOf'].get(main, 'CM')]
+    for w in (3, 5, 8, 12, 20):
+        xs = sorted(a[attr] for c, a in rs if abs(c - ca) <= w)
+        if len(xs) >= 60:
+            break
+    p = PCT[max(-3, min(3, sign))]
+    return int(round(xs[min(len(xs) - 1, int(len(xs) * p / 100))]))
+
+def apply_relative(a, main, ca, tags):
+    for tag, sign in tags:
+        for k in TAG_GAME_ATTRS.get(tag, []):
+            if k in a and sign:
+                a[k] = peer_value(main, ca, k, sign)
 
 unknown_tags = collections.Counter()
 def check_tags(tags, who):
@@ -692,6 +713,7 @@ for r in fc:
         target = game_ca({k: num(v, 10) for k, v in _out_by_id[f"ea_{r['player_id']}"].items() if k in ATTR_COLS}, main)
         a, _, _ = attrs_of(r, age_at(r['birthdate']) if r['birthdate'] else 26)
         apply_fm_tags(a, tags)
+        apply_relative(a, main, target, tags)
         fixed = fixed_of(r['_tags_row'])
         apply_fixed(a, fixed)
         rebalance_ca(a, main, target, tags + [(k, 0) for k in fixed])
@@ -715,6 +737,7 @@ for m, row in manual_extra:
     a, _, wf = attrs_of(fake, age_at(row['nacimiento']) if row.get('nacimiento') else 26)
     check_tags(tags_of(row) + [(k, 0) for k in fixed_of(row)], row['nombre'])
     apply_fm_tags(a, tags_of(row))
+    apply_relative(a, pos[0], level_ca(level), tags_of(row))
     apply_fixed(a, fixed_of(row))
     rebalance_ca(a, pos[0], level_ca(level), tags_of(row) + [(k, 0) for k in fixed_of(row)])
     weak = max(1, min(20, int(wf * 4)))
