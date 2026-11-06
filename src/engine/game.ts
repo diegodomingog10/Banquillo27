@@ -651,9 +651,38 @@ function strength(squad: readonly Player[]): number {
 }
 
 /** Táctica de la IA: formación preferida del entrenador y mentalidad según la diferencia de nivel. */
-export function aiTactic(state: GameState, club: Club, squad: readonly Player[], opponentStrength: number, home: boolean): TeamTactic {
+/** Ventaja de la formación preferida del entrenador al elegir sistema (su identidad pesa, pero no manda). */
+const PREFERRED_BONUS = 1.025;
+const formationCache = new WeakMap<GameState, Map<string, { date: string; formation: string }>>();
+
+/**
+ * Formación de un club de la IA: la que mejor encaja con su plantilla disponible (suma de la idoneidad de
+ * cada titular para su puesto y rol), con ventaja para la preferida del entrenador. Se revisa cada semana.
+ */
+export function aiFormation(state: GameState, club: Club, squad: readonly Player[]): string {
+  let cache = formationCache.get(state);
+  if (!cache) formationCache.set(state, (cache = new Map()));
+  const hit = cache.get(club.id);
+  if (hit && hit.date <= state.date && state.date < addDays(hit.date, 7)) return hit.formation;
   const manager = state.world.staff.find((s) => s.clubId === club.id && s.role === 'manager');
-  const formation = manager?.preferredFormation && FORMATIONS[manager.preferredFormation] ? manager.preferredFormation : '4-4-2';
+  const preferred = manager?.preferredFormation && FORMATIONS[manager.preferredFormation] ? manager.preferredFormation : '4-4-2';
+  const byId = new Map(squad.map((p) => [p.id, p]));
+  let best = preferred;
+  let bestScore = -Infinity;
+  for (const id of FORMATION_IDS) {
+    const t = tacticFromFormation(id, 4, {});
+    const l = autoLineup(squad, t, 0);
+    let sc = 0;
+    l.starting.forEach((pid, i) => { const p = byId.get(pid); const slot = t.slots[i]; if (p && slot) sc += slotScore(p, slot); });
+    if (id === preferred) sc *= PREFERRED_BONUS;
+    if (sc > bestScore) { bestScore = sc; best = id; }
+  }
+  cache.set(club.id, { date: state.date, formation: best });
+  return best;
+}
+
+export function aiTactic(state: GameState, club: Club, squad: readonly Player[], opponentStrength: number, home: boolean): TeamTactic {
+  const formation = aiFormation(state, club, squad);
   const diff = strength(squad) - opponentStrength + (home ? 4 : -4);
   const mentality = clamp(Math.round(4 + diff / 14), 2, 6) as Mentality;
   const counter = diff < -8;
