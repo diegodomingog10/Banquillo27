@@ -329,6 +329,9 @@ npm run import -- data/examples/example-database.json --out data/imported/ejempl
 
 ## 8. Lista de comprobación para tu base real
 
+> Para la base real de FC 27 + Transfermarkt ya preparada, ver la sección **Base de datos real (Fase 9)** del README (`npm run real-db`).
+
+
 1. Exporta `clubs.csv` con `id`, `name`, `nation`, `league_id`, `reputation`.
 2. Exporta `competitions.csv` con `id`, `name`, `nation`, `level` y, si puedes, `strength`.
 3. Exporta `players.csv` con identidad, `club_id`, `positions` o `position_minutes`, `minutes` y

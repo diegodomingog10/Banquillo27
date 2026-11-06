@@ -279,6 +279,53 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 
 **Pantallas nuevas**: Fichajes (buscar, seguimiento, operaciones, ojeadores, en venta y cesiones, historial), Finanzas y Directiva. La ficha del jugador muestra lo que sabes de él y permite ofertar, pedir cesión, renovar u ofrecerlo.
 
+## Base de datos real (Fase 9)
+
+Mundo real de la temporada 2026/27 a partir de dos conjuntos de datos públicos de Kaggle. Los datos **no se publican**: van a `data/real/`, que está en `.gitignore`.
+
+| Fuente | Qué aporta | Fecha |
+|---|---|---|
+| EA SPORTS FC 27 Player Ratings (`mikedpad/ea-sports-fc27-player-ratings`) | Jugadores, clubes, ligas, posiciones, pie, fecha de nacimiento y todos los atributos de EA | 12-09-2026 |
+| Transfermarkt (`davidcariboo/player-scores`) | Altura, fin de contrato, valor de mercado, estadio y aforo | 05-09-2026 (clubes al cierre de 2025/26) |
+
+**Uso**
+
+```bash
+npm run real-db:download   # descarga (necesita ~/.kaggle/kaggle.json)
+npm run real-db            # convierte, importa, completa y verifica -> data/real/world-fc27.json
+```
+
+Después, en el juego: Menú → Importar base de datos → `world-fc27.json` → Usar esta base de datos → Nueva partida → Base cargada.
+
+**Qué hace la conversión** (`scripts/real/build_fc27.py` y `scripts/real/finalize.ts`)
+- **Alcance:** 17.849 jugadores reales del fútbol masculino y 670 clubes.
+  - 34 ligas jugables en 21 países, con ascensos y descensos entre divisiones: Inglaterra 4, Alemania 3, y España, Italia y Francia 2.
+  - Las ligas de 26 equipos o más (MLS, Argentina) se juegan a una vuelta.
+  - Los clubes que EA tiene sin liga completa (Grecia, Chequia, Croacia, los sudamericanos de sus grupos CONMEBOL…) existen para el mercado y para la Copa Libertadores, pero no juegan liga.
+- **Cruce con Transfermarkt:** por fecha de nacimiento y apellido, con el 68 % de los jugadores. Si un jugador ha cambiado de club, manda EA, que tiene datos más recientes.
+- **Atributos:** de la escala 1-99 de EA a la 1-20 con una curva por tramos que comprime los extremos (EA 30 ≈ 5, 50 ≈ 9, 70 ≈ 13, 85 ≈ 16-17, 95 ≈ 19-20).
+- **Lo que EA no tiene se estima de forma determinista por jugador:**
+  - Atributos mentales de Football Manager (decisiones, concentración, trabajo en equipo, liderazgo…) a partir de los de EA más cercanos.
+  - Atributos ocultos.
+  - Potencial (lo estima el importador).
+- **Porteros:** sus atributos mentales salen de su juego de portero, porque los de EA son de jugador de campo.
+- **Nombres reales:** para los clubes sin licencia de EA (Lombardia FC → Inter, Milano FC → AC Milan, Bergamo Calcio → Atalanta, Latium → Lazio…).
+- **Clubes del mismo nombre:** se separan (Nacional de Portugal y de Uruguay).
+- **Completado:** el importador añade staff a todos los clubes y 177 jugadores ficticios para completar plantillas cortas.
+- **Torneos continentales:** Liga de Campeones y Liga Europa (32 + 32, ligas europeas) y Copa Libertadores (32). El primer año las plazas se reparten por nivel del club; después, por la clasificación de liga. Los clubes sin liga conservan su plaza.
+
+**Calibración.** Con la conversión directa salían 3,5-3,7 goles por partido. Había tres causas:
+1. Los porteros quedaban con colocación 2 y concentración 7, porque se calculaban con atributos de jugador de campo.
+2. EA infla regate, velocidad y agilidad.
+3. Rebaja la lectura del juego de los defensas.
+
+Con los ajustes de calibración (`--gk-shift 5`, `--def-shift 3`, `--move-shift -4`, `--read-shift 4`), una temporada simulada da 2,8-3,1 goles por partido en las grandes ligas, entre un 47 % y un 55 % de victorias locales, entre un 20 % y un 26 % de empates, y campeones y diferencias de puntos coherentes.
+
+**Rendimiento.**
+- En el navegador: importar el mundo real tarda unos 6 s, crear la partida 1 s y resolver un partido unos 2,3 s.
+- Fuera del navegador (Node): una temporada completa tarda unos 110 s.
+- La partida guardada ocupa unos 44 MB.
+
 ## IA de clubes, torneos continentales, día de cierre y Data Hub (Fase 8)
 
 **Torneos continentales** (`src/engine/continental.ts`)
@@ -408,4 +455,4 @@ Cuando el enunciado era ambiguo se ha elegido lo más parecido a Football Manage
 6. ✅ Fichajes, scouting, contratos, finanzas y directiva.
 7. ✅ Entrenamiento, lesiones, moral, progresión y fin de temporada.
 8. ✅ IA de clubes, copas y torneos continentales, día de cierre, Data Hub y pulido.
-9. Conexión de la base de datos real: importar, convertir, verificar y calibrar.
+9. ✅ Conexión de la base de datos real: importar, convertir, verificar y calibrar.

@@ -295,7 +295,11 @@ export function qualifyContinental(state: GameState, finalTables: Map<string, { 
   }
   for (const [id, teams] of entrants) {
     const c = comps.find((x) => x.id === id);
-    if (c && teams.length >= 4) c.teamIds = [...new Set(teams)];
+    if (!c || teams.length < 4) continue;
+    // Los clubes sin liga (p. ej. sudamericanos que solo juegan el torneo) conservan su plaza
+    const inLeague = new Set(comps.filter((x) => x.format === 'league').flatMap((x) => x.teamIds));
+    const fixed = c.teamIds.filter((t) => !inLeague.has(t));
+    c.teamIds = [...new Set([...teams, ...fixed])];
   }
 }
 

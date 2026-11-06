@@ -4,3 +4,6 @@ data/imported
 data/generated
 *.log
 *.tsbuildinfo
+
+# Datos reales (no se publican)
+data/real/
