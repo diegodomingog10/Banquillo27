@@ -314,6 +314,15 @@ Después, en el juego: Menú → Importar base de datos → `world-fc27.json` �
 - **Completado:** el importador añade staff a todos los clubes y 177 jugadores ficticios para completar plantillas cortas.
 - **Torneos continentales:** Liga de Campeones y Liga Europa (32 + 32, ligas europeas) y Copa Libertadores (32). El primer año las plazas se reparten por nivel del club; después, por la clasificación de liga. Los clubes sin liga conservan su plaza.
 
+**Clubes añadidos a mano** (`data/real/manual/`, también ignorado por git). Sirve para meter un club que EA no tiene, en sustitución de otro de su liga.
+- Cada club lleva dos archivos:
+  - un `.json` con `club`, `liga_ea`, `sustituye_a`, `pais`, `reputacion_como` (club del que copia reputación y presupuesto), `estadio`, `aforo`, `equipacion` y `jugadores`;
+  - un `.csv` con `dorsal,nombre,posiciones,nivel_ea,nacimiento,nacionalidad,contrato,procedencia,canterano,nota`.
+- `posiciones` usa los códigos GK, CB, RB, LB, DM, CM, AM, RW, LW, ST, separados por `;`. `nivel_ea` es la media en la escala de EA (1-99).
+- Si un jugador del CSV ya está en EA (misma fecha de nacimiento y nombre), se usan sus atributos de EA y se deja `nivel_ea` vacío. Los demás se generan con el nivel indicado; altura, pie y valor salen de Transfermarkt cuando el jugador aparece allí.
+- El club sustituido pasa a «sin liga»: sigue existiendo para el mercado.
+- Ejemplo: Real Zaragoza en LALIGA HYPERMOTION en lugar del CE Sabadell. Tras editar el CSV, se vuelve a generar con `npm run real-db`.
+
 **Calibración.** Con la conversión directa salían 3,5-3,7 goles por partido. Había tres causas:
 1. Los porteros quedaban con colocación 2 y concentración 7, porque se calculaban con atributos de jugador de campo.
 2. EA infla regate, velocidad y agilidad.
