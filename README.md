@@ -17,6 +17,13 @@ npm install
 npm run dev          # interfaz en http://localhost:5173
 ```
 
+### Acceso directo (sin terminal)
+
+En la carpeta del proyecto hay un lanzador por sistema: **`Jugar.bat`** (Windows), **`Jugar.command`** (macOS) y
+**`jugar.sh`** (Linux). Con doble clic buscan actualizaciones (`git pull`), instalan las dependencias la primera vez,
+arrancan el juego y abren el navegador en http://localhost:5173. Para salir, cierra la ventana del lanzador.
+El puerto es siempre el 5173 porque las partidas guardadas van ligadas a esa dirección.
+
 ## Scripts
 
 | Comando | Qué hace |
