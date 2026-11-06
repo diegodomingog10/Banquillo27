@@ -290,11 +290,15 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 - El motor admite el global de la ida en el contexto del partido.
 
 **IA de los clubes** (`src/engine/aiClubs.ts`)
-- **Fichajes:** cada club, cada pocos días de mercado, busca dónde le hace falta un jugador: puestos sin cubrir o un titular claramente por debajo del nivel del once.
-  - Ficha a quien mejore lo que tiene, con su presupuesto, su caja y su margen salarial.
+- **Fichajes:** solo para cubrir huecos reales, sin tope fijo de fichajes.
+  - Cuenta como hueco un titular que se le ha ido desde el último mercado (vendido, libre, retirado o con una lesión de más de tres meses) o que se le va a ir (contrato que vence con 32 años o más, o 34 años cumplidos).
+  - También cuenta una posición por debajo del mínimo: 2 porteros, 3 centrales, 2 laterales, 1 pivote, 3 centrocampistas, 2 bandas, 1 mediapunta y 2 delanteros.
+  - Ficha a alguien del nivel del que perdió; si no lo encuentra, se conforma con alguien algo peor. Siempre con su presupuesto, su caja y su margen salarial.
   - La filosofía cuenta: los clubes de cantera prefieren jóvenes; los nacionalistas, jugadores del país; los prudentes gastan menos.
+  - Si la plantilla está llena, primero hace sitio: cede a un joven con futuro o da la baja al sobrante menos útil (nunca a un recién llegado).
   - Los grandes compran a los mejores de los pequeños; los endeudados venden más barato.
-  - Como mucho tres llegadas por ventana, y ningún jugador se mueve otra vez en cinco meses.
+- **Ventas:** un club de la IA no deja salir a más de dos titulares en el mismo mercado.
+- **Regla de los cinco meses:** ningún jugador cambia de club dos veces en menos de 150 días, ni por traspaso, ni por baja, ni por cesión.
 - **Cesiones:** los grandes ceden a jóvenes con futuro que no juegan a clubes de menor nivel.
 - **Renovaciones:** mes a mes renuevan a quienes cuentan (puesto en la plantilla, edad y potencial); el resto acaba libre.
 - **Entrenadores:** cada mes (octubre-abril), las directivas comparan su puesto con el esperado por reputación. Si van muy por debajo o en descenso, pueden despedir al entrenador y fichar a uno libre o ascender al segundo.

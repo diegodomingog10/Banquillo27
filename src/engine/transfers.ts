@@ -14,6 +14,7 @@ import { credit, debit, payTransferFee, schedulePayment, transferCash, transferE
 import { addMessage, indexes, invalidate, leagueOf, type GameState } from './game';
 import { clamp, createRng, hashString } from './rng';
 import { addConcern } from './dressingRoom';
+import { movedRecently } from './aiClubs';
 
 export const SQUAD_ROLES = ['star', 'important', 'rotation', 'backup', 'youth'] as const;
 export type SquadRole = (typeof SQUAD_ROLES)[number];
@@ -798,6 +799,7 @@ export function aiFillSquads(state: GameState, target = 22): void {
       for (const p of free) {
         if (need <= 0) break;
         if (taken.has(p.id) || p.ca > median + 10 || p.ca < median - 30) continue;
+        if (movedRecently(state, p)) continue;
         if (pass === 0 && !wanted(p)) continue;
         taken.add(p.id);
         need--;

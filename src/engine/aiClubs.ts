@@ -10,12 +10,12 @@ import { GROUP_OF_POSITION, type PositionGroup } from '../data/positions';
 import type { Club, Player, Staff } from '../data/schema';
 import { ageAt, isoFromParts } from './date';
 import { playerWageBill, revenueOf } from './economy';
-import { addMessage, indexes, leagueOf, leagueTable, type GameState } from './game';
+import { addMessage, indexes, invalidate, leagueOf, leagueTable, type GameState } from './game';
 import { createRng, hashString } from './rng';
 import { aiFillSquads, aiTransfer, askingPrice, emptyTerms, expectedRole, playerInterest, rankIn, squadOf, windowOpen } from './transfers';
 
 /** Plantilla mínima deseada por grupo de posición. */
-const NEED: Record<PositionGroup, number> = { GK: 3, CB: 4, FB: 4, DM: 2, CM: 4, WIDE: 4, AM: 2, ST: 3 };
+const NEED: Record<PositionGroup, number> = { GK: 2, CB: 3, FB: 2, DM: 1, CM: 3, WIDE: 2, AM: 1, ST: 2 };
 
 const nameOf = (p: Player) => p.commonName ?? `${p.firstName} ${p.lastName}`;
 
@@ -24,9 +24,8 @@ function level(squad: readonly Player[]): number {
   return top.reduce((a, b) => a + b, 0) / Math.max(1, top.length);
 }
 
-/** Grupo con más necesidad: hueco en número o titular claramente por debajo del nivel del equipo. */
+/** Huecos en número: grupos de posición con menos jugadores de los necesarios. */
 export function squadNeeds(squad: readonly Player[]): { group: PositionGroup; score: number }[] {
-  const lvl = level(squad);
   const by = new Map<PositionGroup, Player[]>();
   for (const p of squad) {
     if (p.injury && p.injury.daysRemaining > 60) continue;
@@ -34,12 +33,58 @@ export function squadNeeds(squad: readonly Player[]): { group: PositionGroup; sc
     by.set(g, [...(by.get(g) ?? []), p]);
   }
   return (Object.keys(NEED) as PositionGroup[]).map((g) => {
-    const list = (by.get(g) ?? []).sort((a, b) => b.ca - a.ca);
-    const gap = Math.max(0, NEED[g] - list.length) * 12;
-    const best = list[0]?.ca ?? 0;
-    const quality = Math.max(0, lvl - best - 4);
-    return { group: g, score: gap + quality };
+    const list = by.get(g) ?? [];
+    return { group: g, score: Math.max(0, NEED[g] - list.length) * 12 };
   }).filter((x) => x.score > 0).sort((a, b) => b.score - a.score);
+}
+
+export interface CoreEntry { id: string; ca: number; group: PositionGroup }
+
+/** Foto del núcleo (16 mejores) de cada club: referencia para saber a quién ha perdido. */
+export function snapshotCores(state: GameState): void {
+  const cores: Record<string, CoreEntry[]> = {};
+  for (const club of state.world.clubs) {
+    if (club.id === state.userClubId) continue;
+    cores[club.id] = squadOf(state, club.id).slice().sort((a, b) => b.ca - a.ca).slice(0, 16)
+      .map((p) => ({ id: p.id, ca: p.ca, group: GROUP_OF_POSITION[mainPosition(p.positions)] }));
+  }
+  state.aiCores = cores;
+}
+
+interface Need { group: PositionGroup; score: number; minCa: number; maxCa: number; replacing: boolean }
+
+/**
+ * Necesidades reales del club: titulares que se le han ido desde el último mercado
+ * (vendidos, libres, retirados o con lesión larga) y aún sin sustituto, y huecos en número.
+ */
+export function realNeeds(state: GameState, club: Club, squad: readonly Player[], windowStart: string): Need[] {
+  const ix = indexes(state);
+  const lvl = level(squad);
+  const here = new Set(squad.map((p) => p.id));
+  const end = state.calendar.end;
+  const lost = (state.aiCores?.[club.id] ?? []).filter((c) => {
+    if (!here.has(c.id)) return true;
+    const p = ix.players.get(c.id);
+    if (!p) return true;
+    if (p.injury && p.injury.daysRemaining > 90) return true;
+    // Se irá: contrato que vence sin renovar o veterano a punto de retirarse
+    if (p.contract && p.contract.type !== 'loan' && p.contract.expires <= end && ageAt(p.birthDate, state.date) >= 32) return true;
+    return ageAt(p.birthDate, state.date) >= 34;
+  });
+  // Llegadas de este mercado que ya cubren alguna baja
+  const arrivals = state.transfers.history.filter((h) => h.toId === club.id && h.date >= windowStart).map((h) => ix.players.get(h.playerId)).filter((p): p is Player => !!p && p.clubId === club.id);
+  const used = new Set<string>();
+  const needs: Need[] = [];
+  for (const c of lost.sort((a, b) => b.ca - a.ca)) {
+    const cover = arrivals.find((p) => !used.has(p.id) && GROUP_OF_POSITION[mainPosition(p.positions)] === c.group && p.ca >= c.ca - 10);
+    if (cover) { used.add(cover.id); continue; }
+    needs.push({ group: c.group, score: 20 + (c.ca - lvl) / 4, minCa: c.ca - 8, maxCa: c.ca + 20, replacing: true });
+  }
+  for (const g of squadNeeds(squad)) {
+    if (needs.some((n) => n.group === g.group)) continue;
+    needs.push({ group: g.group, score: g.score, minCa: lvl - 14, maxCa: lvl + 15, replacing: false });
+  }
+  return needs.sort((a, b) => b.score - a.score);
 }
 
 interface Pools { byGroup: Map<PositionGroup, Player[]> }
@@ -61,17 +106,13 @@ function buildPools(state: GameState): Pools {
 function clubBuys(state: GameState, club: Club, pools: Pools, rng: ReturnType<typeof createRng>, deadline: boolean): boolean {
   const ix = indexes(state);
   const squad = squadOf(state, club.id);
-  if (squad.length >= 26) return false;
-  // Como mucho tres llegadas por ventana
-  const windowStart = state.calendar.windows.find((w) => state.date >= w.open && state.date <= w.deadline)?.open ?? state.date;
-  const arrivals = state.transfers.history.filter((h) => h.toId === club.id && h.date >= windowStart && !h.loan).length;
-  if (arrivals >= 3) return false;
   if (club.finances.balance < -revenueOf(club) * 0.05) return false;
-  const needs = squadNeeds(squad);
-  const need = needs[0];
-  if (!need || need.score < (deadline ? 5 : 8)) return false;
-  const groupBest = squad.filter((p) => GROUP_OF_POSITION[mainPosition(p.positions)] === need.group).reduce((m, p) => Math.max(m, p.ca), 0);
-  const fillGap = need.score >= 12;
+  const windowStart = state.calendar.windows.find((w) => state.date >= w.open && state.date <= w.deadline)?.open ?? state.date;
+  // Solo se ficha para cubrir huecos reales (sin tope fijo de fichajes)
+  const need = realNeeds(state, club, squad, windowStart)[0];
+  if (!need) return false;
+  // Plantilla llena: primero se hace sitio (ceder un joven o dar la baja a un sobrante)
+  if (squad.length >= (need.replacing ? 28 : 26) && !makeRoom(state, club, squad, need.group, rng)) return false;
   const lvl = level(squad);
   const budget = club.finances.transferBudget;
   const wageRoom = club.finances.wageBudget - playerWageBill(state, club.id);
@@ -79,17 +120,18 @@ function clubBuys(state: GameState, club: Club, pools: Pools, rng: ReturnType<ty
   const domestic = club.philosophy.includes('signDomesticPlayers');
   const prudent = club.philosophy.includes('financialPrudence');
   const pool = pools.byGroup.get(need.group) ?? [];
-  const minCa = fillGap ? lvl - 14 : Math.max(lvl - 2, groupBest + 3);
-  const maxCa = lvl + 22;
+  const maxCa = need.maxCa;
   let best: { p: Player; fee: number; score: number } | null = null;
+  // Si no hay nadie del nivel buscado, se conforma con alguien algo peor
+  for (const minCa of [need.minCa - (deadline ? 4 : 0), need.minCa - 14]) {
+  if (best) break;
   let checked = 0;
   for (const p of pool) {
     if (p.ca > maxCa) continue;
     if (p.ca < minCa) break;
     if (p.clubId === club.id || p.injury) continue;
-    // Recién fichado: no se mueve otra vez en unos meses
-    const last = p.history[p.history.length - 1];
-    if (last && (Date.parse(state.date) - Date.parse(last.from)) / 86400000 < 150) continue;
+    // Se ha movido hace poco (traspaso, baja o cesión): no cambia otra vez de club en unos meses
+    if (movedRecently(state, p)) continue;
     if (state.transfers.deals.some((d) => d.playerId === p.id && ['pendingUser', 'agreed', 'negotiating', 'pendingClub'].includes(d.status))) continue;
     const age = ageAt(p.birthDate, state.date);
     if (age >= 33) continue;
@@ -97,6 +139,8 @@ function clubBuys(state: GameState, club: Club, pools: Pools, rng: ReturnType<ty
     const seller = p.clubId ? ix.clubs.get(p.clubId) : undefined;
     // Los clubes no se venden a rivales más modestos a sus figuras
     if (seller && seller.reputation > club.reputation + 1500 && rankIn(p, squadOf(state, seller.id)) <= 14) continue;
+    // El vendedor no deja salir a más de dos titulares en el mismo mercado
+    if (seller && seller.id !== state.userClubId && rankIn(p, squadOf(state, seller.id)) <= 16 && coreSoldThisWindow(state, seller.id, windowStart) >= 2) continue;
     const fee = seller ? askingPrice(state, p, club.id) * (seller.finances.balance < 0 ? 0.85 : 1) : 0;
     if (fee > budget * (prudent ? 0.6 : 0.9) || fee > Math.max(0, club.finances.balance) * 0.8 + budget * 0.2) continue;
     const wage = estimateWage(p.ca, club.reputation, age);
@@ -106,6 +150,7 @@ function clubBuys(state: GameState, club: Club, pools: Pools, rng: ReturnType<ty
     if (!seller) score += 4;
     if (score > (best?.score ?? -Infinity)) best = { p, fee, score };
   }
+  }
   if (!best) return false;
   const p = best.p;
   // Si el jugador es del usuario, se le manda una oferta (como hasta ahora)
@@ -113,6 +158,32 @@ function clubBuys(state: GameState, club: Club, pools: Pools, rng: ReturnType<ty
   if (playerInterest(state, p, club.id) < (deadline ? 30 : 38)) return false;
   const fee = p.clubId ? roundMoney(best.fee * rng.float(0.95, 1.1)) : 0;
   aiTransfer(state, p.id, club.id, fee, { installments: fee > budget * 0.5 ? rng.pick([12, 24]) : 0 });
+  return true;
+}
+
+/** Hace sitio en una plantilla llena: cede a un joven con futuro o da la baja al sobrante menos útil. */
+function makeRoom(state: GameState, club: Club, squad: readonly Player[], needGroup: PositionGroup, rng: ReturnType<typeof createRng>): boolean {
+  const count = new Map<PositionGroup, number>();
+  for (const p of squad) { const g = GROUP_OF_POSITION[mainPosition(p.positions)]; count.set(g, (count.get(g) ?? 0) + 1); }
+  const surplus = squad.filter((p) => {
+    const g = GROUP_OF_POSITION[mainPosition(p.positions)];
+    return g !== needGroup && (count.get(g) ?? 0) > NEED[g] && rankIn(p, squad) > 14 && p.contract?.type !== 'loan' && !movedRecently(state, p);
+  });
+  if (!surplus.length) return false;
+  const age = (p: Player) => ageAt(p.birthDate, state.date);
+  const value = (p: Player) => (age(p) <= 21 ? p.pa : p.ca) - Math.max(0, age(p) - 29) * 5;
+  const out = surplus.slice().sort((a, b) => value(a) - value(b))[0]!;
+  // Joven con futuro: cedido a un club de menor nivel; si no, baja
+  if (age(out) <= 21 && out.pa >= out.ca + 15) {
+    const takers = state.world.clubs.filter((c) => c.id !== club.id && c.id !== state.userClubId && c.reputation < club.reputation && squadOf(state, c.id).length < 25);
+    if (takers.length) { aiTransfer(state, out.id, rng.pick(takers).id, 0, { loan: true }); return true; }
+  }
+  const last = out.history[out.history.length - 1];
+  if (last && last.to === null) last.to = state.date;
+  out.clubId = null;
+  out.contract = null;
+  state.transfers.history.unshift({ date: state.date, playerId: out.id, name: nameOf(out), fromId: club.id, toId: null, fee: 0, loan: false });
+  invalidate(state);
   return true;
 }
 
@@ -139,6 +210,25 @@ function offerToUser(state: GameState, club: Club, p: Player, fee: number, rng: 
   return true;
 }
 
+/** Titulares (del núcleo al cerrar el último mercado) que el club ha vendido en este mercado. */
+function coreSoldThisWindow(state: GameState, clubId: string, windowStart: string): number {
+  const core = new Set((state.aiCores?.[clubId] ?? []).map((c) => c.id));
+  return state.transfers.history.filter((h) => h.fromId === clubId && h.toId && !h.loan && h.date >= windowStart && core.has(h.playerId)).length;
+}
+
+/** ¿Ha cambiado de club (traspaso, baja, cesión) en los últimos 150 días? */
+export function movedRecently(state: GameState, p: Player, days = 150): boolean {
+  const last = p.history[p.history.length - 1];
+  const fromHistory = last ? last.from : null;
+  const fromMarket = state.transfers.history.find((h) => h.playerId === p.id)?.date ?? null;
+  const latest = [fromHistory, fromMarket, last?.to ?? null].filter((x): x is string => !!x).sort().at(-1);
+  return !!latest && (Date.parse(state.date) - Date.parse(latest)) / 86400000 < days;
+}
+
+function addDaysIso(iso: string, n: number): string {
+  return isoAddDays(iso, n);
+}
+
 function isoAddDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + n);
@@ -162,6 +252,8 @@ export function aiClubsDay(state: GameState): void {
   const ix = indexes(state);
   const open = windowOpen(state);
   const deadline = state.calendar.windows.some((w) => w.deadline === state.date);
+  // Foto del núcleo de cada plantilla al empezar y al día siguiente de cerrar cada mercado
+  if (!state.aiCores || state.calendar.windows.some((w) => addDaysIso(w.deadline, 1) === state.date)) snapshotCores(state);
   // El día de cierre se juega por horas desde la pantalla de fichajes; si ya se jugó, no se repite
   if (deadline && state.deadline?.date === state.date && state.deadline.hour >= DEADLINE_END) return;
   if (deadline && state.deadline?.date === state.date) { while (state.deadline.hour < DEADLINE_END) deadlineStep(state); return; }
