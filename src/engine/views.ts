@@ -141,7 +141,7 @@ export function tableView(state: GameState, competitionId: string): TableRowView
   return rows.map((r) => {
     let zone: TableRowView['zone'] = null;
     const direct = pr ? pr.promoted - (pr.playoffPositions.length ? 1 : 0) : 0;
-    if (pr?.upCompetitionId && r.position <= direct) zone = 'promotion';
+    if (pr?.upCompetitionId && !pr.randomPromotion && r.position <= direct) zone = 'promotion';
     else if (pr?.playoffPositions.includes(r.position)) zone = 'playoff';
     else if (pr?.downCompetitionId && r.position > size - pr.relegated) zone = 'relegation';
     else if (contSpots.has(r.position)) zone = 'continental';

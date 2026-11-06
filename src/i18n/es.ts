@@ -241,6 +241,7 @@ export const es = {
     cupOut: { subject: 'Eliminados de la {cup}', body: '{club} cae eliminado en {round} ante {opponent}.' },
     windowOpen: { subject: 'Se abre el mercado de {window}', body: 'El mercado de fichajes permanecerá abierto hasta el {deadline}.' },
     deadlineDay: { subject: 'Último día de mercado', body: 'Hoy cierra el mercado de {window}. Es la última oportunidad para cerrar operaciones.' },
+    promotionDraw: { subject: 'Sorteo de ascensos en {league}', body: 'Suben a {up} por sorteo: {clubs}.' },
     stadiumOpened: { subject: '¡Estreno del {stadium}!', body: '{club} se despide del {old} y estrena el {stadium}, con {capacity} espectadores. Los ingresos de taquilla crecerán con el nuevo aforo.' },
     windowClosed: { subject: 'Mercado cerrado', body: 'El mercado de {window} ha cerrado.' },
     internationalBreak: { subject: 'Parón internacional', body: 'Las ligas se detienen hasta el {to} por los compromisos de las selecciones.' },

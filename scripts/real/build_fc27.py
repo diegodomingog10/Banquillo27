@@ -124,9 +124,11 @@ LEAGUES = {
     'CSL': ('China PR', 1, 'Superliga China'),
     'Isuzu UTE A League': ('Australia', 1, 'A-League'),
     'ISL': ('India', 1, 'Indian Super League'),
+    # No está en EA: la forman los clubes añadidos a mano (data/real/manual)
+    'PRIMERA FEDERACIÓN': ('Spain', 3, 'Primera Federación'),
 }
 # Ascensos y descensos entre divisiones del mismo país (descienden/ascienden)
-MOVES = {('England', 1): 3, ('England', 2): 3, ('England', 3): 4, ('Spain', 1): 3, ('Italy', 1): 3,
+MOVES = {('England', 1): 3, ('England', 2): 3, ('England', 3): 4, ('Spain', 1): 3, ('Spain', 2): 4, ('Italy', 1): 3,
          ('Germany', 1): 2, ('Germany', 2): 2, ('France', 1): 2}
 # Ligas parciales o de un solo club en EA: sus clubes existen pero no juegan liga
 PARTIAL_COUNTRY = {
@@ -174,12 +176,43 @@ ES_NAT = {'España': 'Spain', 'Países Bajos': 'Holland', 'Rumanía': 'Romania',
           'Ecuador': 'Ecuador', 'República Dominicana': 'Dominican Republic', 'Argentina': 'Argentina', 'Francia': 'France',
           'Portugal': 'Portugal', 'Italia': 'Italy', 'Alemania': 'Germany', 'Inglaterra': 'England', 'Uruguay': 'Uruguay',
           'Colombia': 'Colombia', 'Brasil': 'Brazil', 'Marruecos': 'Morocco', 'Senegal': 'Senegal', 'Eslovaquia': 'Slovakia'}
+def read_roster(spec):
+    """Plantilla de un club: un CSV o una hoja de un Excel («libro.xlsx#Hoja»). Devuelve (filas, categorías)."""
+    if '.xlsx' not in spec:
+        return list(csv.DictReader(open(os.path.join(args.manual, spec), newline='', encoding='utf-8'))), {}
+    import datetime
+    from openpyxl import load_workbook
+    book, sheet = spec.split('#', 1)
+    wb = load_workbook(os.path.join(args.manual, book), data_only=True)
+    def table(ws):
+        it = ws.iter_rows(values_only=True)
+        head = [str(h).strip() if h is not None else '' for h in next(it)]
+        out = []
+        for vals in it:
+            if all(v is None or v == '' for v in vals):
+                continue
+            row = {}
+            for h, v in zip(head, vals):
+                if isinstance(v, (datetime.datetime, datetime.date)):
+                    v = v.strftime('%Y-%m-%d')
+                elif isinstance(v, float) and v.is_integer():
+                    v = int(v)
+                row[h] = '' if v is None else str(v).strip()
+            out.append(row)
+        return out
+    cats = {}
+    if 'Categorías' in wb.sheetnames:
+        for c in table(wb['Categorías']):
+            if c.get('categoria'):
+                cats[c['categoria']] = (float(c['nivel_base']), float(c['partidos_liga']))
+    return [r for r in table(wb[sheet]) if r.get('nombre')], cats
+
 MANUAL = []
 if os.path.isdir(args.manual):
     for fn in sorted(os.listdir(args.manual)):
         if fn.endswith('.json'):
             m = json.load(open(os.path.join(args.manual, fn), encoding='utf-8'))
-            m['rows'] = list(csv.DictReader(open(os.path.join(args.manual, m['jugadores']), newline='', encoding='utf-8')))
+            m['rows'], m['cats'] = read_roster(m['jugadores'])
             MANUAL.append(m)
 manual_extra = []  # jugadores sin datos de EA: se crean con nivel objetivo
 manual_clubs = {m['club']: m for m in MANUAL}
@@ -398,15 +431,40 @@ def level_ca(level):
             return round(y0 + (y1 - y0) * (max(level, x0) - x0) / (x1 - x0))
     return LEVEL_TO_CA[-1][1]
 
+def manual_level(m, row):
+    """Nivel EA de un jugador añadido a mano: nivel_ea > estadísticas de la última temporada > nivel_estimado."""
+    forced = num(row.get('nivel_ea'))
+    if forced is not None:
+        return forced, 'manual'
+    cat = m['cats'].get(row.get('categoria', ''))
+    mins = num(row.get('minutos'), 0)
+    if cat and mins >= 270:
+        base, games = cat
+        share = min(1, mins / (games * 90))
+        lvl = base - 5 + 7 * min(1, share / 0.66)
+        main = (row.get('posiciones') or '').split(';')[0].strip()
+        if main in ('AM', 'LW', 'RW', 'ST'):
+            lvl += min(3, 6 * (num(row.get('goles'), 0) + num(row.get('asistencias'), 0)) * 90 / mins)
+        if row.get('nacimiento') and share >= 0.5 and age_at(row['nacimiento']) <= 20:
+            lvl += 1
+        return int(lvl + 0.5), 'estadísticas'
+    est = num(row.get('nivel_estimado'))
+    return (est if est is not None else 60), 'estimado'
+
+used_ids = set()
 for m, row in manual_extra:
     toks = [t for t in norm(row['nombre']).split() if len(t) > 2]
     t = next((x for x in by_dob.get(row['nacimiento'], []) if any(tk in norm(x['name']) for tk in toks)), None)
     parts = row['nombre'].split()
     pos = [p.strip() for p in row['posiciones'].split(';') if p.strip()]
-    level = num(row.get('nivel_ea'), 62)
+    level, _ = manual_level(m, row)
+    pid = f"man_{slug(m['club'])}_{slug(row['nombre'])}"
+    while pid in used_ids:
+        pid += '_' + (row.get('dorsal') or 'x')
+    used_ids.add(pid)
     out = {k: '' for k in players_out[0]}
     out.update({
-        'id': f"man_{slug(m['club'])}_{row['dorsal']}",
+        'id': pid,
         'first_name': parts[0], 'last_name': ' '.join(parts[1:]) or parts[0], 'common_name': row['nombre'] if len(parts) == 1 else '',
         'birth_date': row['nacimiento'], 'nationality': ES_NAT.get(row['nacionalidad'], row['nacionalidad']),
         'height_cm': (t['height_in_cm'] if t and t['height_in_cm'] else ''),
@@ -414,7 +472,7 @@ for m, row in manual_extra:
         'club_id': f"cl_{slug(m['club'])}",
         'positions': ';'.join([pos[0]] + [f'{q}:15' for q in pos[1:]]),
         'market_value': (t['market_value_in_eur'] if t and t['market_value_in_eur'] else ''),
-        'contract_expires': f"{row['contrato']}-06-30" if row.get('contrato') else '',
+        'contract_expires': f"{str(row['contrato'])[:4]}-06-30" if row.get('contrato') else '',
         'external_id': 'manual' + (f";tm:{t['player_id']}" if t else ''),
     })
     out['ca'] = level_ca(level)
@@ -459,6 +517,7 @@ for club, ps in club_players.items():
         'stadium': (tmc['stadium_name'] if tmc and tmc['stadium_name'] else ''),
         'capacity': (tmc['stadium_seats'] if tmc and tmc['stadium_seats'] and tmc['stadium_seats'] != '0' else ''),
         'home_shirt': '', 'home_secondary': '', 'home_shorts': '', 'away_shirt': '', 'away_secondary': '', 'away_shorts': '',
+        'home_pattern': '', 'away_pattern': '',
         'future_stadium_name': '', 'future_stadium_capacity': '', 'future_stadium_opens': '',
     }
     m = manual_clubs.get(club)
@@ -478,6 +537,8 @@ for c in clubs_out:
     m = manual_clubs.get(c['name'])
     if m and m.get('reputacion_como') in rep_by_name:
         c['reputation'] = rep_by_name[m['reputacion_como']]
+    elif m and m.get('reputacion'):
+        c['reputation'] = int(m['reputacion'])
 
 # ---------------------------------------------------------------- naciones
 nat_players = collections.defaultdict(list)
@@ -544,4 +605,7 @@ print(f'Escala: curva por tramos {CURVE} con desplazamiento {args.shift:+}')
 for m in MANUAL:
     n_ea = sum(1 for r in fc if r['club'] == m['club'])
     n_man = sum(1 for mm, _ in manual_extra if mm is m)
-    print(f"Añadido a mano: {m['club']} en {m['liga_ea']} ({n_ea} con datos de EA, {n_man} con nivel estimado)" + (f"; {m['sustituye_a']} queda sin liga" if m.get('sustituye_a') else ''))
+    how = collections.Counter(manual_level(mm, row)[1] for mm, row in manual_extra if mm is m)
+    detail = ', '.join(f'{v} {k}' for k, v in how.items())
+    replaced = m.get('sustituye_a') and m['sustituye_a'] not in manual_clubs
+    print(f"Añadido a mano: {m['club']} en {LEAGUES.get(m['liga_ea'], ('', '', m['liga_ea']))[2]} ({n_ea} con datos de EA; nivel: {detail or '—'})" + (f"; {m['sustituye_a']} queda sin liga" if replaced else ''))

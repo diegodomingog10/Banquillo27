@@ -402,8 +402,8 @@ export function generateWorld(opts: WorldGenOptions): WorldDatabase {
         },
         promotion:
           div === 1
-            ? { upCompetitionId: null, downCompetitionId: divisions > 1 ? `c_${code}_2` : null, promoted: 0, relegated: divisions > 1 ? 3 : 0, playoffPositions: [] }
-            : { upCompetitionId: `c_${code}_1`, downCompetitionId: null, promoted: 3, relegated: 0, playoffPositions: [3, 4, 5, 6] },
+            ? { upCompetitionId: null, downCompetitionId: divisions > 1 ? `c_${code}_2` : null, promoted: 0, relegated: divisions > 1 ? 3 : 0, playoffPositions: [], randomPromotion: false }
+            : { upCompetitionId: `c_${code}_1`, downCompetitionId: null, promoted: 3, relegated: 0, playoffPositions: [3, 4, 5, 6], randomPromotion: false },
         continentalSpots: [],
         estimated: [],
         source: 'generated',

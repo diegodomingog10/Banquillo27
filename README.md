@@ -314,15 +314,18 @@ Después, en el juego: Menú → Importar base de datos → `world-fc27.json` �
 - **Completado:** el importador añade staff a todos los clubes y 177 jugadores ficticios para completar plantillas cortas.
 - **Torneos continentales:** Liga de Campeones y Liga Europa (32 + 32, ligas europeas) y Copa Libertadores (32). El primer año las plazas se reparten por nivel del club; después, por la clasificación de liga. Los clubes sin liga conservan su plaza.
 
-**Clubes añadidos a mano** (`data/real/manual/`, también ignorado por git). Sirve para meter un club que EA no tiene, en sustitución de otro de su liga.
-- Cada club lleva dos archivos:
-  - un `.json` con `club`, `liga_ea`, `sustituye_a`, `pais`, `reputacion_como` (club del que copia reputación y presupuesto), `estadio`, `aforo`, `equipacion` y `jugadores`;
-  - un `.csv` con `dorsal,nombre,posiciones,nivel_ea,nacimiento,nacionalidad,contrato,procedencia,canterano,nota`.
-- `posiciones` usa los códigos GK, CB, RB, LB, DM, CM, AM, RW, LW, ST, separados por `;`. `nivel_ea` es la media en la escala de EA (1-99).
-- Si un jugador del CSV ya está en EA (misma fecha de nacimiento y nombre), se usan sus atributos de EA y se deja `nivel_ea` vacío. Los demás se generan con el nivel indicado; altura, pie y valor salen de Transfermarkt cuando el jugador aparece allí.
-- Opcional: `estadio_futuro` (`nombre`, `aforo`, `apertura` AAAA-MM-DD) para un estadio en construcción. Ese día el club se traslada; la taquilla prevista y los abonados crecen con el aforo y el jugador recibe un mensaje de la directiva. En el CSV de clubes del importador son las columnas `future_stadium_name`, `future_stadium_capacity` y `future_stadium_opens`.
-- El club sustituido pasa a «sin liga»: sigue existiendo para el mercado.
-- Ejemplo: Real Zaragoza en LALIGA HYPERMOTION en lugar del CE Sabadell. Tras editar el CSV, se vuelve a generar con `npm run real-db`.
+**Clubes añadidos a mano** (`data/real/manual/`, también ignorado por git). Sirve para meter clubes que EA no tiene, en una liga de EA o en la Primera Federación.
+- Cada club lleva un `.json` con `club`, `liga_ea`, `pais`, `estadio`, `aforo`, `equipacion` y `jugadores`. Opcionales:
+  - `sustituye_a`: club de esa liga que pasa a «sin liga» (sigue existiendo para el mercado);
+  - `reputacion_como` (club del que copia reputación y presupuesto) o `reputacion` (0-10000);
+  - `estadio_futuro` (`nombre`, `aforo`, `apertura` AAAA-MM-DD): estadio en construcción. Ese día el club se traslada; la taquilla prevista y los abonados crecen con el aforo y el jugador recibe un mensaje de la directiva. En el CSV de clubes del importador son las columnas `future_stadium_name`, `future_stadium_capacity` y `future_stadium_opens`.
+- `jugadores` apunta a un CSV o a una hoja de un Excel (`plantillas_manuales.xlsx#Real Zaragoza`). Columnas: `dorsal, nombre, posiciones, nivel_ea, nivel_estimado, nacimiento, nacionalidad, contrato, procedencia, canterano, nota` y, opcionales, las estadísticas de la última temporada `categoria, partidos, minutos, goles, asistencias`.
+- `posiciones`: principal primero y secundarias después, separadas por `;` (GK, CB, RB, LB, RWB, LWB, DM, CM, AM, RM, LM, RW, LW, ST).
+- **Nivel** (escala EA 1-99), por este orden: `nivel_ea` (forzado a mano) > estadísticas > `nivel_estimado`. Con al menos 270 minutos:
+  `nivel = nivel_base de la categoría − 5 + 7 × min(1, cuota de minutos ÷ 0,66)`, + hasta 3 para AM/LW/RW/ST según goles y asistencias por 90 minutos (0,5 = +3), + 1 si tenía 20 años o menos y jugó la mitad de los minutos. La cuota de minutos es `minutos ÷ (partidos_liga × 90)`. Los niveles base y las jornadas de cada categoría están en la hoja «Categorías» del Excel (1ª 72, 2ª 65, 1RFEF 60, 2RFEF 54, 3RFEF 49).
+- Si un jugador ya está en EA (misma fecha de nacimiento y nombre), se usan sus atributos de EA y se ignoran su nivel y posiciones. Los demás se generan con el nivel calculado; altura, pie y valor salen de Transfermarkt cuando el jugador aparece allí.
+- **Primera Federación:** con los clubes cuyo `liga_ea` es `PRIMERA FEDERACIÓN` se crea la tercera división española. Ahora son 8: Real Murcia, Hércules, Nàstic, Huesca, Cultural Leonesa, Mirandés, Lugo y Sabadell, con plantillas 2026-27 de Wikipedia. Se juega a cuatro vueltas (28 jornadas). Bajan los 4 últimos de Segunda y suben 4 equipos de la Primera Federación **por sorteo**, no por clasificación (`promotion.randomPromotion`).
+- Ejemplo: Real Zaragoza en LaLiga Hypermotion en lugar del CE Sabadell, que pasa a la Primera Federación. Tras editar el Excel, se vuelve a generar con `npm run real-db`.
 
 **Calibración.** Con la conversión directa salían 3,5-3,7 goles por partido. Había tres causas:
 1. Los porteros quedaban con colocación 2 y concentración 7, porque se calculaban con atributos de jugador de campo.

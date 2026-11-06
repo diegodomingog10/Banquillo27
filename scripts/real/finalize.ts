@@ -85,6 +85,12 @@ if (lib.length >= 8) db.competitions.push(continental('c_lib', 'Copa Libertadore
 
 // Ligas muy grandes (MLS, Argentina): una sola vuelta, como sus formatos reales de temporada regular
 for (const c of db.competitions) if (c.format === 'league' && c.teamIds.length >= 26) c.rules.roundRobinLegs = 1;
+// Primera Federación (clubes añadidos a mano): 8 equipos a cuatro vueltas (28 jornadas) y ascensos por sorteo
+const rfef = comps.get('lg_primera_federacion');
+if (rfef) {
+  rfef.rules.roundRobinLegs = 4;
+  if (rfef.promotion) rfef.promotion.randomPromotion = true;
+}
 
 const parsed = WorldSchema.parse(db);
 const v = verifyDatabase(parsed);

@@ -422,6 +422,8 @@ export const Competition = z.object({
       relegated: z.number().int().min(0).default(0),
       /** Posiciones que juegan playoff de ascenso (p. ej. [3,4,5,6]). */
       playoffPositions: z.array(z.number().int().min(1)).default([]),
+      /** Los que ascienden se sortean entre todos los equipos de la liga (no por clasificación). */
+      randomPromotion: z.boolean().default(false),
     })
     .nullable()
     .default(null),

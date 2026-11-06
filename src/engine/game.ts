@@ -1072,7 +1072,16 @@ function processSeasonEnd(state: GameState): void {
     if (pr?.downCompetitionId && pr.relegated > 0) {
       for (const r of table.slice(-pr.relegated)) moves.push({ clubId: r.clubId, from: comp.id, to: pr.downCompetitionId });
     }
-    if (pr?.upCompetitionId && pr.promoted > 0) {
+    if (pr?.upCompetitionId && pr.promoted > 0 && pr.randomPromotion) {
+      const drawn = rngFor(state, `ascenso:${comp.id}:${state.season}`).shuffle(table).slice(0, pr.promoted);
+      for (const r of drawn) moves.push({ clubId: r.clubId, from: comp.id, to: pr.upCompetitionId });
+      const up = ix.comps.get(pr.upCompetitionId);
+      const list = drawn.map((r) => clubName(state, r.clubId)).join(', ');
+      news(state, 'promotionDraw', t('msg.promotionDraw.subject', { league: comp.name }));
+      if (comp.nationId === ix.clubs.get(state.userClubId)?.nationId) {
+        addMessage(state, { type: 'news', priority: drawn.some((r) => r.clubId === state.userClubId) ? 'high' : 'normal', key: 'promotionDraw', params: { league: comp.name, up: up?.name ?? '', clubs: list } });
+      }
+    } else if (pr?.upCompetitionId && pr.promoted > 0) {
       const po = state.playoffs[comp.id];
       const direct = po?.winnerId ? pr.promoted - 1 : pr.promoted;
       for (const r of table.slice(0, direct)) moves.push({ clubId: r.clubId, from: comp.id, to: pr.upCompetitionId });
