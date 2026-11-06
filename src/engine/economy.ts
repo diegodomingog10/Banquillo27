@@ -69,6 +69,12 @@ export function revenueOf(club: Club): number {
 
 const HOME_GAMES = 21;
 
+/** Interés anual del saldo negativo (descubierto). */
+export const OVERDRAFT_RATE = 0.08;
+
+/** Crecimiento anual de ingresos y gastos fijos (multiplicador por temporada). */
+export const GROWTH = { tv: 1.04, sponsorship: 1.03, merchandising: 1.03, tickets: 1.02, operations: 1.02 };
+
 export function playerWageBill(state: GameState, clubId: string): number {
   return (indexes(state).squads.get(clubId) ?? []).reduce((a, p) => a + (p.contract?.wage ?? 0), 0);
 }
@@ -207,6 +213,8 @@ export function economyDay(state: GameState): void {
       const f = c.facilities;
       debit(state, c.id, 'facilities', (f.training + f.youth + f.youthRecruitment + f.juniorCoaching) * revenueOf(c) * 0.0004 / 12);
       if (c.finances.debt > 0) debit(state, c.id, 'interest', (c.finances.debt * 0.05) / 12);
+      // Saldo negativo: intereses de descubierto (8 % anual), para todos los clubes
+      if (c.finances.balance < 0) debit(state, c.id, 'interest', (-c.finances.balance * OVERDRAFT_RATE) / 12);
       e.history.push({ date: d, balance: c.finances.balance });
       if (e.history.length > 40) e.history.splice(0, e.history.length - 40);
     }
@@ -310,6 +318,13 @@ export function rolloverFinances(state: GameState, levelChange: Map<string, numb
       s.sponsorship = roundMoney(s.sponsorship * (ch < 0 ? 1.35 : 0.75));
       s.merchandising = roundMoney(s.merchandising * (ch < 0 ? 1.25 : 0.8));
     }
+    // Crecimiento anual de los ingresos (TV, patrocinio, merchandising y taquilla) y, algo menos, de los gastos
+    s.tv = roundMoney(s.tv * GROWTH.tv);
+    s.sponsorship = roundMoney(s.sponsorship * GROWTH.sponsorship);
+    s.merchandising = roundMoney(s.merchandising * GROWTH.merchandising);
+    s.tickets = roundMoney(s.tickets * GROWTH.tickets);
+    e.ticketFactor *= GROWTH.tickets;
+    e.operations = roundMoney(e.operations * GROWTH.operations);
     s.prizes = 0;
     s.transfers = 0;
     e.last = e.season;

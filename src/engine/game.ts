@@ -195,6 +195,8 @@ export interface GameState {
   deadline?: DeadlineState;
   /** Núcleo de cada club de la IA al cerrar el último mercado (para detectar bajas). */
   aiCores?: Record<string, CoreEntry[]>;
+  /** Ventas forzadas por deudas (club:jugador). */
+  debtSales?: string[];
   seq: number;
 }
 

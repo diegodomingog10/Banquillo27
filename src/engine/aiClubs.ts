@@ -9,7 +9,8 @@ import { estimateWage, mainPosition, roundMoney } from '../data/ability';
 import { GROUP_OF_POSITION, type PositionGroup } from '../data/positions';
 import type { Club, Player, Staff } from '../data/schema';
 import { ageAt, isoFromParts } from './date';
-import { playerWageBill, revenueOf } from './economy';
+import { debit, playerWageBill, revenueOf } from './economy';
+const debitWages = (state: GameState, clubId: string, amount: number) => debit(state, clubId, 'wages', amount);
 import { addMessage, indexes, invalidate, leagueOf, leagueTable, type GameState } from './game';
 import { createRng, hashString } from './rng';
 import { aiFillSquads, aiTransfer, askingPrice, emptyTerms, expectedRole, playerInterest, rankIn, squadOf, windowOpen } from './transfers';
@@ -275,7 +276,9 @@ export function aiClubsDay(state: GameState): void {
   if (state.date.endsWith('-01')) {
     aiRenewals(state);
     managerCarousel(state);
+    debtWageCuts(state);
   }
+  if (open) debtSales(state, deadline);
   void ix;
 }
 
@@ -415,4 +418,64 @@ export function deadlineView(state: GameState) {
   if (!today) return null;
   const dl = state.deadline?.date === state.date ? state.deadline : { date: state.date, hour: DEADLINE_START, feed: [] };
   return { ...dl, end: DEADLINE_END, done: dl.hour >= DEADLINE_END, pending: state.transfers.deals.filter((d) => d.status === 'pendingUser').length };
+}
+
+// ---------------------------------------------------------------- plan de viabilidad
+/** Club muy endeudado: saldo por debajo del −10 % de sus ingresos anuales. */
+export function inDebtCrisis(club: Club): boolean {
+  return club.finances.balance < -revenueOf(club) * 0.1;
+}
+
+/** Durante el mercado, un club en crisis vende a su jugador más caro a quien pueda pagarlo (uno por mercado). */
+function debtSales(state: GameState, deadline: boolean): void {
+  const ix = indexes(state);
+  const windowStart = state.calendar.windows.find((w) => state.date >= w.open && state.date <= w.deadline)?.open ?? state.date;
+  for (const club of state.world.clubs) {
+    if (club.id === state.userClubId || !inDebtCrisis(club)) continue;
+    if (!deadline && hashString(`debt:${club.id}:${state.date}`) % 6 !== 0) continue;
+    const already = state.transfers.history.some((h) => h.fromId === club.id && h.toId && !h.loan && h.date >= windowStart && h.fee > 0 && state.debtSales?.includes(`${club.id}:${h.playerId}`));
+    if (already || coreSoldThisWindow(state, club.id, windowStart) >= 2) continue;
+    const squad = squadOf(state, club.id);
+    if (squad.length <= 20) continue;
+    const forSale = squad.filter((p) => p.contract?.type !== 'loan' && !p.injury && !movedRecently(state, p) && ageAt(p.birthDate, state.date) <= 31).sort((a, b) => b.marketValue - a.marketValue);
+    for (const p of forSale.slice(0, 3)) {
+      const fee = roundMoney(askingPrice(state, p, club.id) * 0.85);
+      const buyers = state.world.clubs.filter((c) => {
+        if (c.id === club.id || c.id === state.userClubId || inDebtCrisis(c)) return false;
+        if (c.finances.transferBudget < fee || c.finances.balance < fee * 0.5) return false;
+        const sq = squadOf(state, c.id);
+        return sq.length < 28 && p.ca >= level(sq) - 5;
+      }).filter((c) => playerInterest(state, p, c.id) >= 35).sort((a, b) => b.reputation - a.reputation);
+      const buyer = buyers[0];
+      if (!buyer) continue;
+      aiTransfer(state, p.id, buyer.id, fee, { installments: fee > buyer.finances.transferBudget * 0.5 ? 12 : 0 });
+      (state.debtSales ??= []).push(`${club.id}:${p.id}`);
+      if (state.debtSales.length > 300) state.debtSales.splice(0, state.debtSales.length - 300);
+      state.news.unshift({ date: state.date, type: 'transfer', text: `${club.name} vende a ${nameOf(p)} a ${buyer.name} para aliviar sus deudas` });
+      break;
+    }
+    void ix;
+  }
+}
+
+/** Cada mes, un club en crisis rescinde el contrato de un veterano caro que no es titular. */
+function debtWageCuts(state: GameState): void {
+  for (const club of state.world.clubs) {
+    if (club.id === state.userClubId || !inDebtCrisis(club)) continue;
+    club.finances.transferBudget = 0;
+    const squad = squadOf(state, club.id);
+    if (squad.length <= 22) continue;
+    const cand = squad.filter((p) => rankIn(p, squad) > 16 && ageAt(p.birthDate, state.date) >= 28 && p.contract && p.contract.type !== 'loan' && !movedRecently(state, p))
+      .sort((a, b) => (b.contract?.wage ?? 0) - (a.contract?.wage ?? 0));
+    const out = cand[0];
+    if (!out?.contract) continue;
+    // Rescisión pactada: se le pagan tres meses de sueldo
+    debitWages(state, club.id, out.contract.wage * 13);
+    const last = out.history[out.history.length - 1];
+    if (last && last.to === null) last.to = state.date;
+    out.clubId = null;
+    out.contract = null;
+    state.transfers.history.unshift({ date: state.date, playerId: out.id, name: nameOf(out), fromId: club.id, toId: null, fee: 0, loan: false });
+  }
+  invalidate(state);
 }

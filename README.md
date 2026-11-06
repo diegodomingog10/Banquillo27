@@ -252,6 +252,8 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
 - Gastos: salarios de jugadores y staff cada lunes, gastos de operación, mantenimiento de instalaciones, intereses de la deuda, fichajes, primas, comisiones y multas.
 - Traspasos a plazos (40 % al contado y el resto en 6-36 meses), bonus por partidos y porcentajes de reventa como pagos programados.
 - Juego limpio financiero: pérdida máxima de 5 M€ o el 30 % de los ingresos (si el saldo queda negativo). Primera vez, advertencia; si se repite, multa del 3 % y prohibición de fichar en el siguiente verano.
+- Saldo negativo: intereses de descubierto del 8 % anual, cobrados cada mes (a todos los clubes, también al tuyo).
+- Crecimiento anual: TV +4 %, patrocinio +3 %, merchandising +3 % y taquilla +2 %. Los gastos de operación suben un 2 %.
 - Previsión del saldo y del resultado a final de temporada. Reparto del presupuesto entre fichajes y salarios (1 € semanal = 52 €) y precio de la entrada (más caro = menos público).
 
 **Ojeo** (`src/engine/scouting.ts`)
@@ -298,6 +300,11 @@ del 65', ambos equipos arriesgan más. Medido: 0 → 29 %, 0,3 (defecto) → 26 
   - Si la plantilla está llena, primero hace sitio: cede a un joven con futuro o da la baja al sobrante menos útil (nunca a un recién llegado).
   - Los grandes compran a los mejores de los pequeños; los endeudados venden más barato.
 - **Ventas:** un club de la IA no deja salir a más de dos titulares en el mismo mercado.
+- **Plan de viabilidad:** un club de la IA con un saldo por debajo del −10 % de sus ingresos anuales entra en crisis.
+  - Su presupuesto de fichajes se congela y no ficha.
+  - En cada mercado vende a su jugador más valioso (hasta 31 años) a un club que pueda pagarlo, con un 15 % de rebaja.
+  - Cada mes rescinde el contrato del veterano caro que no es titular, pagándole tres meses de sueldo.
+
 - **Regla de los cinco meses:** ningún jugador cambia de club dos veces en menos de 150 días, ni por traspaso, ni por baja, ni por cesión.
 - **Cesiones:** los grandes ceden a jóvenes con futuro que no juegan a clubes de menor nivel.
 - **Renovaciones:** mes a mes renuevan a quienes cuentan (puesto en la plantilla, edad y potencial); el resto acaba libre.
