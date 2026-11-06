@@ -236,6 +236,8 @@ for m in MANUAL:
             hit[0]['league'] = m['liga_ea']
             if num(row.get('nivel_ea')) is not None:
                 hit[0]['_force'] = num(row.get('nivel_ea'))
+            if (row.get('rasgos') or '').strip():
+                hit[0]['_tags_row'] = row
         else:
             manual_extra.append((m, row))
 
@@ -485,6 +487,7 @@ GROUP = {'GK': 'GK', 'CB': 'CB', 'LB': 'FB', 'RB': 'FB', 'LWB': 'FB', 'RWB': 'FB
          'AM': 'AM', 'LM': 'W', 'RM': 'W', 'LW': 'W', 'RW': 'W', 'ST': 'ST', 'CF': 'ST'}
 EA_CODE = {'DM': 'CDM', 'AM': 'CAM'}
 POOL = {}
+DCOEF = {}
 _by_group = collections.defaultdict(list)
 for r in fc:
     if r['pace'] and r['overall_rating']:
@@ -498,32 +501,131 @@ for g, rs in _by_group.items():
     SM = np.array([num(r['skill_moves'], 2) for r in rs], float)
     WF = np.array([num(r['weak_foot'], 3) for r in rs], float)
     POOL[g] = (X, y, H, D, coef, SM, WF)
+    # Media de EA en función de los 34 atributos detallados (para reequilibrar tras aplicar rasgos)
+    DCOEF[g] = np.linalg.lstsq(np.c_[np.ones(len(D)), D], y, rcond=None)[0]
 
-# Rasgos (columna «rasgos» del Excel, separados por comas; con «-» delante restan)
+# Rasgos (columna «rasgos» del Excel, separados por comas). Intensidad: «x» +1, «++x» +2, «-x» −1, «--x» −2.
+# Un paso son 7 puntos EA (≈ 1,5 en la escala 1-20 del juego) en los atributos relacionados; después se reequilibra
+# el resto para que la media del jugador siga siendo su nivel.
 TAG_EA = {
-    'velocidad': ['movement_acceleration', 'movement_sprint_speed'], 'regate': ['skill_dribbling', 'movement_agility', 'skill_ball_control'],
+    'velocidad': ['movement_acceleration', 'movement_sprint_speed'], 'agilidad': ['movement_agility', 'movement_balance'],
+    'regate': ['skill_dribbling', 'movement_agility', 'skill_ball_control'], 'tecnica': ['skill_ball_control', 'skill_dribbling', 'skill_curve', 'attacking_short_passing'],
     'centros': ['attacking_crossing', 'skill_curve'], 'cabeza': ['attacking_heading_accuracy', 'power_jumping'],
-    'remate': ['attacking_finishing', 'mentality_positioning', 'attacking_volleys'], 'disparo lejano': ['power_long_shots', 'power_shot_power'],
+    'remate': ['attacking_finishing', 'attacking_volleys', 'mentality_positioning'], 'disparo lejano': ['power_long_shots', 'power_shot_power'],
     'pase': ['attacking_short_passing', 'skill_long_passing'], 'vision': ['mentality_vision', 'skill_long_passing'],
-    'faltas': ['skill_fk_accuracy', 'skill_curve'], 'penaltis': ['mentality_penalties'], 'entradas': ['defending_standing_tackle', 'defending_sliding_tackle'],
-    'colocacion': ['defending_awareness', 'mentality_interceptions'], 'fisico': ['power_strength', 'mentality_aggression'],
-    'resistencia': ['power_stamina'], 'tecnica': ['skill_ball_control', 'skill_dribbling', 'skill_curve'], 'agilidad': ['movement_agility', 'movement_balance'],
+    'ultimo pase': ['mentality_vision', 'attacking_short_passing'], 'faltas': ['skill_fk_accuracy', 'skill_curve'], 'penaltis': ['mentality_penalties'],
+    'entradas': ['defending_standing_tackle', 'defending_sliding_tackle', 'mentality_interceptions'],
+    'colocacion': ['defending_awareness', 'mentality_interceptions'],
+    'tactica': ['defending_awareness', 'mentality_interceptions', 'mentality_positioning', 'movement_reactions'],
+    'decisiones': ['movement_reactions', 'mentality_composure', 'mentality_vision'], 'desmarque': ['mentality_positioning', 'movement_reactions'],
+    'compostura': ['mentality_composure'], 'fuerza': ['power_strength'], 'fisico': ['power_strength', 'power_stamina', 'power_jumping'],
+    'resistencia': ['power_stamina'], 'agresivo': ['mentality_aggression'],
     'reflejos': ['goalkeeping_reflexes', 'goalkeeping_diving'], 'juego de pies': ['goalkeeping_kicking', 'attacking_short_passing', 'skill_long_passing'],
-    'blocaje': ['goalkeeping_handling'], 'colocacion portero': ['goalkeeping_positioning'],
+    'blocaje': ['goalkeeping_handling'], 'por alto': ['goalkeeping_handling', 'goalkeeping_positioning', 'power_jumping'],
+    'colocacion portero': ['goalkeeping_positioning'],
 }
-TAG_FM = {'lider': {'leadership': 4}, 'trabajador': {'workRate': 3, 'teamwork': 2}, 'caracter': {'determination': 3, 'bravery': 2},
-          'profesional': {'professionalism': 3}, 'regular': {'consistency': 3}, 'irregular': {'consistency': -4}, 'fragil': {'injuryProneness': 4},
-          'polivalente': {'versatility': 4}, 'competitivo': {'importantMatches': 3, 'determination': 2}}
-TAG_STEP = 7  # en escala EA (≈ 1,5 puntos en la escala 1-20)
+TAG_ALIAS = {'robos': 'entradas', 'corte': 'entradas', 'juego aereo': 'cabeza', 'gol': 'remate', 'definicion': 'remate', 'posicionamiento': 'colocacion',
+             'recorrido': 'resistencia', 'liderazgo': 'lider', 'lesiones': 'fragil', 'rapido': 'velocidad', 'uno contra uno': 'reflejos', '1vs1': 'reflejos',
+             'temperamento': 'temperamental'}
+TAG_FM = {'lider': {'leadership': 4}, 'personalidad': {'leadership': 2, 'importantMatches': 3, 'determination': 2},
+          'trabajador': {'workRate': 3, 'teamwork': 2}, 'caracter': {'determination': 3, 'bravery': 2}, 'profesional': {'professionalism': 3},
+          'regular': {'consistency': 3}, 'irregular': {'consistency': -3}, 'fragil': {'injuryProneness': 4}, 'polivalente': {'versatility': 4},
+          'competitivo': {'importantMatches': 3, 'determination': 2}, 'temperamental': {'temperament': -4}, 'agresivo': {'aggression': 2},
+          'experiencia': {'importantMatches': 2, 'composure': 1}}
+TAG_STEP = 7
 
 def tags_of(row):
     out = []
     for t in (row.get('rasgos') or '').split(','):
         t = t.strip()
-        if t:
-            sign = -1 if t.startswith('-') else 1
-            out.append((norm(t.lstrip('-+ ')), sign))
+        if not t or '=' in t:
+            continue
+        k = len(t) - len(t.lstrip('+-'))
+        sign = (-1 if t.startswith('-') else 1) * max(1, k)
+        name = norm(t.lstrip('-+ '))
+        out.append((TAG_ALIAS.get(name, name), sign))
     return out
+
+def apply_tags(det, tags, level, group):
+    """Aplica los rasgos a los atributos detallados (escala EA). El reequilibrio para mantener el nivel se hace
+    después, en la escala del juego (rebalance_ca), que es la que cuenta para la CA."""
+    col = {k: i for i, k in enumerate(EA_DETAIL)}
+    for tag, sign in tags:
+        for k in TAG_EA.get(tag, []):
+            det[col[k]] += sign * TAG_STEP
+    return np.clip(det, 1, 99)
+
+def fixed_of(row):
+    """Valores fijos en la escala del juego: «fuerza=19» fija los atributos de ese rasgo a 19."""
+    out = {}
+    for t in (row.get('rasgos') or '').split(','):
+        if '=' in t:
+            k, v = t.split('=', 1)
+            name = norm(k.strip())
+            out[TAG_ALIAS.get(name, name)] = num(v.strip())
+    return {k: v for k, v in out.items() if v is not None}
+
+def apply_fixed(a, fixed):
+    for tag, v in fixed.items():
+        for k in TAG_GAME_ATTRS.get(tag, []):
+            a[k] = int(max(1, min(20, round(v))))
+
+def apply_fm_tags(a, tags):
+    for tag, sign in tags:
+        for k, v in TAG_FM.get(tag, {}).items():
+            if k in a:
+                a[k] = max(1, min(20, round(a[k] + sign * v)))
+
+# Habilidad actual (CA) con la misma fórmula que el juego (pesos de src/data/ability.ts)
+import subprocess
+_caw = json.loads(subprocess.run(['npx', 'tsx', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ca_weights.ts')],
+                                 capture_output=True, text=True, check=True).stdout)
+
+def game_ca(a, main):
+    w = _caw['weights'][_caw['groupOf'].get(main, 'CM')]
+    keys = [k for k, v in w.items() if v > 0]
+    return 10 * sum(w[k] * a[k] for k in keys) / sum(w[k] for k in keys)
+
+# Atributos del juego (1-20) ligados a cada rasgo: no se tocan al reequilibrar, para que los puntos
+# fuertes sigan siéndolo y los débiles sigan siéndolo; el ajuste recae en el resto.
+TAG_GAME_ATTRS = {
+    'velocidad': ['pace', 'acceleration'], 'agilidad': ['agility', 'balance'], 'regate': ['dribbling', 'agility'],
+    'tecnica': ['technique', 'firstTouch'], 'centros': ['crossing'], 'cabeza': ['heading', 'jumping'], 'remate': ['finishing', 'offTheBall'],
+    'disparo lejano': ['longShots'], 'pase': ['passing'], 'vision': ['vision'], 'ultimo pase': ['vision', 'passing'], 'faltas': ['freeKicks'],
+    'penaltis': ['penalties'], 'entradas': ['tackling'], 'colocacion': ['positioning', 'marking'],
+    'tactica': ['positioning', 'anticipation', 'decisions', 'offTheBall'], 'decisiones': ['decisions', 'composure'], 'desmarque': ['offTheBall'],
+    'compostura': ['composure'], 'fuerza': ['strength'], 'fisico': ['strength', 'stamina', 'jumping'], 'resistencia': ['stamina'],
+    'agresivo': ['aggression'], 'reflejos': ['reflexes', 'oneOnOnes'], 'juego de pies': ['kicking', 'playWithFeet'], 'blocaje': ['handling'],
+    'por alto': ['aerialReach', 'handling'], 'colocacion portero': ['positioning'], 'lider': ['leadership'], 'trabajador': ['workRate', 'teamwork'],
+}
+
+def rebalance_ca(a, main, target, tags=()):
+    """Desplaza por igual los atributos que cuentan para la CA (salvo los ligados a rasgos) hasta que la CA del
+    juego sea `target`: los rasgos cambian el reparto de los atributos, no el nivel global."""
+    w = _caw['weights'][_caw['groupOf'].get(main, 'CM')]
+    protect = {k for tag, _ in tags for k in TAG_GAME_ATTRS.get(tag, [])}
+    keys = [k for k, v in w.items() if v > 0 and k in a and k not in protect]
+    total = sum(v for v in w.values() if v > 0)
+    free = sum(w[k] for k in keys) or total
+    vals = {k: float(a[k]) for k in keys}
+    for _ in range(6):
+        d = (target - game_ca({**a, **vals}, main)) / 10 * total / free
+        vals = {k: min(20.0, max(1.0, v + d)) for k, v in vals.items()}
+    for k in keys:
+        a[k] = int(round(vals[k]))
+    order = sorted(keys, key=lambda k: -w[k])
+    for i in range(60):  # ajuste fino tras redondear
+        diff = round(game_ca(a, main)) - round(target)
+        if diff == 0:
+            break
+        k = order[i % len(order)]
+        a[k] = max(1, min(20, a[k] - (1 if diff > 0 else -1)))
+
+unknown_tags = collections.Counter()
+def check_tags(tags, who):
+    for tag, _ in tags:
+        if tag not in TAG_EA and tag not in TAG_FM and tag not in TAG_GAME_ATTRS:
+            unknown_tags[f'{tag} ({who})'] += 1
 
 def player_faces(m, row, level, group):
     """Valores de carta del jugador: los del Excel o, si faltan, nivel + desplazamientos de su perfil; corregidos a su nivel."""
@@ -551,9 +653,7 @@ def manual_template(m, row, level, pid, main, height, foot):
         dh = (height - HEIGHT_OF[group]) * 0.6
         for k in ('attacking_heading_accuracy', 'power_jumping'):
             det[col[k]] += dh
-    for tag, sign in tags_of(row):
-        for k in TAG_EA.get(tag, []):
-            det[col[k]] += sign * TAG_STEP
+    det = apply_tags(det, tags_of(row), level, group)
     fake = {k: str(int(round(max(1, min(99, v))))) for k, v in zip(EA_DETAIL, det)}
     fake.update({f: str(int(round(v))) for f, v in zip(FACES, faces)})
     fake.update({'player_id': pid, 'overall_rating': str(level), 'position': EA_CODE.get(main, main),
@@ -578,6 +678,25 @@ for g in ('GK', 'CB', 'FB', 'DM', 'CM', 'AM', 'W', 'ST'):
 
 FOOT_ES = {'zurdo': 'left', 'izquierdo': 'left', 'diestro': 'right', 'derecho': 'right', 'ambidiestro': 'both', 'ambos': 'both'}
 
+# Jugadores de EA de un club manual con rasgos: se aplican sobre sus atributos reales, manteniendo su media
+_out_by_id = {r['id']: r for r in players_out}
+for r in fc:
+    if r.get('_tags_row'):
+        tags = tags_of(r['_tags_row'])
+        check_tags(tags, r['_tags_row']['nombre'])
+        g = GROUP.get(r['position'], 'CM')
+        det = np.array([num(r.get(k), 50) for k in EA_DETAIL], float)
+        det = apply_tags(det, tags, num(r['overall_rating'], 60), g)
+        r.update({k: str(int(round(v))) for k, v in zip(EA_DETAIL, det)})
+        main = POS.get(r['position'], 'CM')
+        target = game_ca({k: num(v, 10) for k, v in _out_by_id[f"ea_{r['player_id']}"].items() if k in ATTR_COLS}, main)
+        a, _, _ = attrs_of(r, age_at(r['birthdate']) if r['birthdate'] else 26)
+        apply_fm_tags(a, tags)
+        fixed = fixed_of(r['_tags_row'])
+        apply_fixed(a, fixed)
+        rebalance_ca(a, main, target, tags + [(k, 0) for k in fixed])
+        _out_by_id[f"ea_{r['player_id']}"].update({k: a.get(k) for k in ATTR_COLS})
+
 used_ids = set()
 for m, row in manual_extra:
     toks = [t for t in norm(row['nombre']).split() if len(t) > 2]
@@ -594,9 +713,10 @@ for m, row in manual_extra:
         or ('left' if pos[0] in ('LB', 'LWB', 'LM') else 'right')
     fake, h_nb = manual_template(m, row, level, pid, pos[0], height, foot)
     a, _, wf = attrs_of(fake, age_at(row['nacimiento']) if row.get('nacimiento') else 26)
-    for tag, sign in tags_of(row):
-        for k, v in TAG_FM.get(tag, {}).items():
-            a[k] = max(1, min(20, a[k] + sign * v))
+    check_tags(tags_of(row) + [(k, 0) for k in fixed_of(row)], row['nombre'])
+    apply_fm_tags(a, tags_of(row))
+    apply_fixed(a, fixed_of(row))
+    rebalance_ca(a, pos[0], level_ca(level), tags_of(row) + [(k, 0) for k in fixed_of(row)])
     weak = max(1, min(20, int(wf * 4)))
     out = {k: '' for k in players_out[0]}
     out.update({k: a.get(k) for k in ATTR_COLS})
@@ -739,6 +859,8 @@ print(f'Jugadores: {len(players_out)} ({matched} cruzados con Transfermarkt, {10
 print(f'Clubes: {len(clubs_out)} ({playing} en ligas jugables, {len(clubs_out) - playing} sin liga)')
 print(f'Ligas: {len(comps_out)} · Naciones: {len(nations_out)}')
 print(f'Escala: curva por tramos {CURVE} con desplazamiento {args.shift:+}')
+if unknown_tags:
+    print('Rasgos no reconocidos (se ignoran):', ', '.join(unknown_tags))
 for m in MANUAL:
     n_ea = sum(1 for r in fc if r['club'] == m['club'])
     n_man = sum(1 for mm, _ in manual_extra if mm is m)
