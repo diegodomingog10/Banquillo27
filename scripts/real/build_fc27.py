@@ -18,6 +18,7 @@ import argparse
 import collections
 import csv
 import hashlib
+import json
 import os
 import re
 import unicodedata
@@ -26,6 +27,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--fc27', default='data/real/fc27-kaggle/extracted/players.csv')
 ap.add_argument('--tm', default='data/real/transfermarkt/extracted')
 ap.add_argument('--out', default='data/real/import')
+ap.add_argument('--manual', default='data/real/manual', help='carpeta con clubes añadidos a mano (*.json + CSV de plantilla)')
 # Escala EA (1-99) -> juego (1-20): curva por tramos; --shift desplaza todos los valores EA (calibración)
 ap.add_argument('--shift', type=float, default=0.0)
 # Ajustes de calibración del motor (en puntos de la escala EA)
@@ -165,6 +167,38 @@ for r in fc:
     k = (r['club'], r['league'])
     if k in _nat_of:
         r['club'] = f"{r['club']} ({_nat_of[k].most_common(1)[0][0]})"
+# ---------------------------------------------------------------- clubes añadidos a mano
+# Cada *.json de --manual describe un club que EA no tiene (p. ej. Real Zaragoza): liga, club al que
+# sustituye (pasa a no tener liga), estadio, equipación y un CSV con la plantilla (posiciones y nivel EA).
+ES_NAT = {'España': 'Spain', 'Países Bajos': 'Holland', 'Rumanía': 'Romania', 'Nigeria': 'Nigeria', 'Ghana': 'Ghana',
+          'Ecuador': 'Ecuador', 'República Dominicana': 'Dominican Republic', 'Argentina': 'Argentina', 'Francia': 'France',
+          'Portugal': 'Portugal', 'Italia': 'Italy', 'Alemania': 'Germany', 'Inglaterra': 'England', 'Uruguay': 'Uruguay',
+          'Colombia': 'Colombia', 'Brasil': 'Brazil', 'Marruecos': 'Morocco', 'Senegal': 'Senegal', 'Eslovaquia': 'Slovakia'}
+MANUAL = []
+if os.path.isdir(args.manual):
+    for fn in sorted(os.listdir(args.manual)):
+        if fn.endswith('.json'):
+            m = json.load(open(os.path.join(args.manual, fn), encoding='utf-8'))
+            m['rows'] = list(csv.DictReader(open(os.path.join(args.manual, m['jugadores']), newline='', encoding='utf-8')))
+            MANUAL.append(m)
+manual_extra = []  # jugadores sin datos de EA: se crean con nivel objetivo
+manual_clubs = {m['club']: m for m in MANUAL}
+fc_by_dob = collections.defaultdict(list)
+for r in fc:
+    fc_by_dob[r['birthdate']].append(r)
+for m in MANUAL:
+    for r in fc:
+        if r['club'] == m.get('sustituye_a'):
+            r['league'] = 'SIN LIGA:' + m['pais']
+    for row in m['rows']:
+        toks = [t for t in norm(row['nombre']).split() if len(t) > 2]
+        hit = [r for r in fc_by_dob.get(row['nacimiento'], []) if any(t in norm(r['first_name'] + ' ' + r['last_name'] + ' ' + r['common_name']) for t in toks)]
+        if len(hit) == 1:
+            hit[0]['club'] = m['club']
+            hit[0]['league'] = m['liga_ea']
+        else:
+            manual_extra.append((m, row))
+
 tm_players = list(csv.DictReader(open(os.path.join(args.tm, 'players.csv'), newline='', encoding='utf-8')))
 tm_clubs = {c['club_id']: c for c in csv.DictReader(open(os.path.join(args.tm, 'clubs.csv'), newline='', encoding='utf-8'))}
 
@@ -197,12 +231,17 @@ def club_country(club, league):
         return LEAGUES[league][0]
     if league in PARTIAL_COUNTRY:
         return PARTIAL_COUNTRY[league]
+    if league.startswith('SIN LIGA:'):
+        return league.split(':', 1)[1]
     # Grupos CONMEBOL de EA: país más frecuente entre sus jugadores
     return collections.Counter(p['nationality'] for p in club_players[club]).most_common(1)[0][0]
 
 club_league = {}
 for r in fc:
     club_league.setdefault(r['club'], r['league'])
+for m in MANUAL:
+    club_league[m['club']] = m['liga_ea']
+    club_players.setdefault(m['club'], [])
 
 # ---------------------------------------------------------------- jugadores
 POS = {'GK': 'GK', 'CB': 'CB', 'LB': 'LB', 'RB': 'RB', 'LWB': 'LWB', 'RWB': 'RWB', 'CDM': 'DM', 'CM': 'CM', 'CAM': 'AM',
@@ -351,6 +390,42 @@ for r in fc:
     row.update({k: a.get(k) for k in ATTR_COLS})
     players_out.append(row)
 
+# Jugadores añadidos a mano sin datos de EA: nivel EA -> CA objetivo (relación media de la base real)
+LEVEL_TO_CA = [(45, 80), (50, 86), (55, 94), (58, 100), (60, 104), (62, 108), (64, 113), (66, 117), (68, 120), (70, 125), (75, 135), (80, 146)]
+def level_ca(level):
+    for (x0, y0), (x1, y1) in zip(LEVEL_TO_CA, LEVEL_TO_CA[1:]):
+        if level <= x1:
+            return round(y0 + (y1 - y0) * (max(level, x0) - x0) / (x1 - x0))
+    return LEVEL_TO_CA[-1][1]
+
+for m, row in manual_extra:
+    toks = [t for t in norm(row['nombre']).split() if len(t) > 2]
+    t = next((x for x in by_dob.get(row['nacimiento'], []) if any(tk in norm(x['name']) for tk in toks)), None)
+    parts = row['nombre'].split()
+    pos = [p.strip() for p in row['posiciones'].split(';') if p.strip()]
+    level = num(row.get('nivel_ea'), 62)
+    out = {k: '' for k in players_out[0]}
+    out.update({
+        'id': f"man_{slug(m['club'])}_{row['dorsal']}",
+        'first_name': parts[0], 'last_name': ' '.join(parts[1:]) or parts[0], 'common_name': row['nombre'] if len(parts) == 1 else '',
+        'birth_date': row['nacimiento'], 'nationality': ES_NAT.get(row['nacionalidad'], row['nacionalidad']),
+        'height_cm': (t['height_in_cm'] if t and t['height_in_cm'] else ''),
+        'foot': (t['foot'] if t and t['foot'] in ('left', 'right', 'both') else ''),
+        'club_id': f"cl_{slug(m['club'])}",
+        'positions': ';'.join([pos[0]] + [f'{q}:15' for q in pos[1:]]),
+        'market_value': (t['market_value_in_eur'] if t and t['market_value_in_eur'] else ''),
+        'contract_expires': f"{row['contrato']}-06-30" if row.get('contrato') else '',
+        'external_id': 'manual' + (f";tm:{t['player_id']}" if t else ''),
+    })
+    out['ca'] = level_ca(level)
+    out['_level'] = level
+    players_out.append(out)
+for row in players_out:
+    row.setdefault('ca', '')
+    lvl = row.pop('_level', None)
+    if lvl is not None:
+        club_players[next(m['club'] for m in MANUAL if row['club_id'] == f"cl_{slug(m['club'])}")].append({'overall_rating': lvl})
+
 # ---------------------------------------------------------------- clubes
 def club_strength(club):
     rs = sorted((num(p['overall_rating'], 50) for p in club_players[club]), reverse=True)[:16]
@@ -377,13 +452,26 @@ for club, ps in club_players.items():
         cid, n = tm_by_ea_club[club].most_common(1)[0]
         if n >= 3:
             tmc = tm_clubs.get(cid)
-    clubs_out.append({
+    entry = {
         'id': f'cl_{slug(club)}', 'name': club, 'short_name': club[:20], 'nation': country,
         'league_id': f'lg_{slug(lg)}' if lg in LEAGUES else '',
         'reputation': rep,
         'stadium': (tmc['stadium_name'] if tmc and tmc['stadium_name'] else ''),
         'capacity': (tmc['stadium_seats'] if tmc and tmc['stadium_seats'] and tmc['stadium_seats'] != '0' else ''),
-    })
+        'home_shirt': '', 'home_secondary': '', 'home_shorts': '', 'away_shirt': '', 'away_secondary': '', 'away_shorts': '',
+    }
+    m = manual_clubs.get(club)
+    if m:
+        entry['stadium'] = m.get('estadio', '')
+        entry['capacity'] = m.get('aforo', '')
+        entry.update(m.get('equipacion', {}))
+    clubs_out.append(entry)
+# Reputación de los clubes añadidos a mano: la del club de referencia que indique su ficha
+rep_by_name = {c['name']: c['reputation'] for c in clubs_out}
+for c in clubs_out:
+    m = manual_clubs.get(c['name'])
+    if m and m.get('reputacion_como') in rep_by_name:
+        c['reputation'] = rep_by_name[m['reputacion_como']]
 
 # ---------------------------------------------------------------- naciones
 nat_players = collections.defaultdict(list)
@@ -447,3 +535,7 @@ print(f'Jugadores: {len(players_out)} ({matched} cruzados con Transfermarkt, {10
 print(f'Clubes: {len(clubs_out)} ({playing} en ligas jugables, {len(clubs_out) - playing} sin liga)')
 print(f'Ligas: {len(comps_out)} · Naciones: {len(nations_out)}')
 print(f'Escala: curva por tramos {CURVE} con desplazamiento {args.shift:+}')
+for m in MANUAL:
+    n_ea = sum(1 for r in fc if r['club'] == m['club'])
+    n_man = sum(1 for mm, _ in manual_extra if mm is m)
+    print(f"Añadido a mano: {m['club']} en {m['liga_ea']} ({n_ea} con datos de EA, {n_man} con nivel estimado)" + (f"; {m['sustituye_a']} queda sin liga" if m.get('sustituye_a') else ''))
