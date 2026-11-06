@@ -107,6 +107,26 @@ export interface EngineConfig {
    * para que el nivel de los jugadores pese menos, este factor mantiene el peso de las decisiones.
    */
   situationalWeight: number;
+  /**
+   * Gestión del partido: cuánto pesan las decisiones tomadas en el banquillo.
+   * - exposurePerStep: peligro extra de las contras por cada punto de mentalidad ofensiva.
+   * - push: facilidad para atacar en el último tercio por cada punto de mentalidad ofensiva (más gente arriba).
+   * - block: dificultad para progresar ante un bloque defensivo, por cada punto de mentalidad defensiva.
+   * - blockXg: peores ocasiones (menos xG y más tiros bloqueados) ante un bloque defensivo, por punto: el rival
+   *   llega y tira, pero con peores ángulos y más gente delante.
+   * - fatiguePhys / fatigueOther: pérdida máxima de atributos físicos / técnicos y mentales con la condición a 0.
+   */
+  management: { exposurePerStep: number; push: number; block: number; blockXg: number; fatiguePhys: number; fatigueOther: number };
+  /**
+   * Instrucciones que dependen del rival.
+   * - lineVsPace: con la línea adelantada, ventaja de un delantero más rápido que su defensor al hueco (por punto
+   *   de línea y punto de velocidad); con la línea baja, el espacio a la espalda se cierra.
+   * - pressVsTech: la presión rinde más contra quien conduce con poca técnica (primer toque, técnica, compostura,
+   *   pase) y menos contra el que la tiene (por punto de diferencia con 11).
+   * - counterVsLine: peligro extra de las contras por cada punto de línea adelantada del que pierde el balón.
+   * - tempoRisk: riesgo de pérdida con ritmo alto para pasadores flojos (por punto de ritmo y de pase bajo 12).
+   */
+  instructions: { lineVsPace: number; pressVsTech: number; counterVsLine: number; tempoRisk: number };
 }
 
 export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
@@ -166,6 +186,8 @@ export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
   counterExposure: 0.07,
   shotQuality: { finisher: 0.03, keeper: 0.035 },
   situationalWeight: 1.55,
+  management: { exposurePerStep: 0.08, push: 0.35, block: 0.2, blockXg: 0.07, fatiguePhys: 0.9, fatigueOther: 0.4 },
+  instructions: { lineVsPace: 0.12, pressVsTech: 0.18, counterVsLine: 0.25, tempoRisk: 0.015 },
 };
 
 export function mergeConfig(partial?: Partial<EngineConfig>): EngineConfig {
@@ -180,6 +202,8 @@ export function mergeConfig(partial?: Partial<EngineConfig>): EngineConfig {
     tension: { ...DEFAULT_ENGINE_CONFIG.tension, ...partial.tension },
     sharpness: { ...DEFAULT_ENGINE_CONFIG.sharpness, ...partial.sharpness },
     shotQuality: { ...DEFAULT_ENGINE_CONFIG.shotQuality, ...partial.shotQuality },
+    management: { ...DEFAULT_ENGINE_CONFIG.management, ...partial.management },
+    instructions: { ...DEFAULT_ENGINE_CONFIG.instructions, ...partial.instructions },
   };
 }
 

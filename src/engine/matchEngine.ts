@@ -51,6 +51,11 @@ export interface MatchTeamInput {
   familiarity?: number;
   /** Si la IA controla al equipo (cambios y ajustes). Por defecto true. */
   ai?: boolean;
+  /**
+   * Nivel táctico (1-20) de quien decide desde el banquillo cuando lo hace la IA: el entrenador o, en el
+   * equipo del usuario con el asistente activado, su segundo entrenador. Por defecto 12.
+   */
+  managerSkill?: number;
 }
 
 export interface MatchContext {
@@ -314,6 +319,8 @@ interface TS {
   stats: TeamMatchStats;
   familiarity: number;
   ai: boolean;
+  /** Cómo decide su banquillo en este partido (según su nivel táctico; fijo durante el partido). */
+  bench_: { skill: number; delay: number; passive: boolean; overreact: boolean; subsByName: boolean };
   pending: MatchCommand[];
   takers: TeamTactic['setPieces'];
   pens: number;
@@ -354,8 +361,18 @@ const emptyPlayerStats = (id: string, side: 0 | 1, started: boolean): PlayerMatc
 });
 
 /** Tablas de fatiga por condición (0,0-100,0 en pasos de 0,1). */
-const FAT_PHYS = Array.from({ length: 1001 }, (_, i) => 1 - 0.6 * Math.pow(1 - i / 1000, 1.1));
-const FAT_OTHER = Array.from({ length: 1001 }, (_, i) => 1 - 0.22 * Math.pow(1 - i / 1000, 1.2));
+/** Curvas de fatiga (por milésima de condición) para una pérdida máxima dada; se cachean por valor. */
+const FAT_CACHE = new Map<string, Float64Array>();
+function fatigueCurve(max: number, exp: number): Float64Array {
+  const key = `${max}:${exp}`;
+  let c = FAT_CACHE.get(key);
+  if (!c) {
+    c = new Float64Array(1001);
+    for (let i = 0; i <= 1000; i++) c[i] = 1 - max * Math.pow(1 - i / 1000, exp);
+    FAT_CACHE.set(key, c);
+  }
+  return c;
+}
 const GROUP_CODE = Object.fromEntries(
   Object.entries(ATTR_GROUP_OF).map(([a, g]) => [a, g === 'physical' ? 0 : g === 'technical' ? 1 : g === 'mental' ? 2 : 3]),
 ) as Record<AttrKey, 0 | 1 | 2 | 3>;
@@ -390,10 +407,14 @@ export class MatchSimulation {
   private techWeather: number;
   private physWeather: number;
   private drainWeather: number;
+  private readonly fatPhysCurve: Float64Array;
+  private readonly fatOtherCurve: Float64Array;
   private aerialWeather: number;
 
   constructor(readonly input: MatchInput) {
     this.cfg = mergeConfig(input.config);
+    this.fatPhysCurve = fatigueCurve(this.cfg.management.fatiguePhys, 1.1);
+    this.fatOtherCurve = fatigueCurve(this.cfg.management.fatigueOther, 1.2);
     this.rng = createRng(input.seed);
     this.full = (input.detail ?? 'full') === 'full';
     const ctx = input.context;
@@ -438,6 +459,7 @@ export class MatchSimulation {
       inst: { ...tactic.instructions }, mentality: tactic.mentality, mental: { ...NEUTRAL_MENTAL }, players: [],
       byId: new Map(), bench: [], subsUsed: 0, subWindows: new Set(), goals: 0, homeFactor: 1, techMod: 1, mentMod: 1,
       compMod: 1, actions: 0, stats: emptyTeamStats(), familiarity: input.familiarity ?? 70, ai: input.ai ?? true, pending: [],
+      bench_: this.benchStyle(side, input.managerSkill ?? 12),
       takers: tactic.setPieces, pens: 0, onCount: 11, freshness: 1,
     };
     const byId = new Map(input.squad.map((p) => [p.id, p]));
@@ -520,8 +542,8 @@ export class MatchSimulation {
 
   private updateFatigue(rp: RP): void {
     const i = clamp(Math.round(rp.cond * 10), 0, 1000);
-    rp.fatPhys = (FAT_PHYS[i] as number) * this.physWeather;
-    rp.fatOther = FAT_OTHER[i] as number;
+    rp.fatPhys = (this.fatPhysCurve[i] as number) * this.physWeather;
+    rp.fatOther = this.fatOtherCurve[i] as number;
     this.updateMods(rp);
   }
 
@@ -989,18 +1011,37 @@ export class MatchSimulation {
     return outcome;
   }
 
+  /**
+   * Estilo del banquillo según el nivel táctico (1-20), sorteado una vez por partido con un generador propio
+   * (no altera el resto del partido): los entrenadores flojos reaccionan tarde, a veces no reaccionan cuando van
+   * perdiendo o se pasan de frenada, y a veces cambian por nombre en lugar de por encaje.
+   */
+  private benchStyle(side: 0 | 1, skill: number): TS['bench_'] {
+    const s = clamp(skill, 1, 20);
+    const r = createRng(`${this.input.seed}:banquillo:${side}`);
+    return {
+      skill: s,
+      delay: Math.round(clamp((13 - s) * 1.2, -5, 12)),
+      passive: r.chance((20 - s) * 0.022),
+      overreact: r.chance((20 - s) * 0.018),
+      subsByName: r.chance((20 - s) * 0.03),
+    };
+  }
+
   private aiDecide(t: TS, minute: number): void {
     const opp = this.teams[t.side === 0 ? 1 : 0];
     const diff = t.goals - opp.goals;
     const prev = { ...t.aiAdj };
     const adj = { mentality: 0, defensiveLine: 0, pressIntensity: 0, tempo: 0 };
-    if (diff < 0 && minute >= 55) {
-      adj.mentality = (diff <= -2 ? 2 : 1) + (minute >= 78 ? 1 : 0);
+    const bs = t.bench_;
+    const over = bs.overreact ? 1 : 0;
+    if (diff < 0 && minute >= 55 + bs.delay && !bs.passive) {
+      adj.mentality = (diff <= -2 ? 2 : 1) + (minute >= 78 + bs.delay / 2 ? 1 : 0) + over;
       adj.defensiveLine = 1;
       adj.pressIntensity = 1;
       adj.tempo = 1;
-    } else if (diff > 0 && minute >= 68) {
-      adj.mentality = diff === 1 && minute >= 82 ? -2 : -1;
+    } else if (diff > 0 && minute >= 68 + bs.delay) {
+      adj.mentality = (diff === 1 && minute >= 82 ? -2 : -1) - over;
       adj.defensiveLine = -1;
       adj.tempo = -1;
     } else if (diff === 0 && minute >= 70 && this.cfg.drawAversion > 0) {
@@ -1021,7 +1062,7 @@ export class MatchSimulation {
 
     // Cambios
     const maxSubs = this.input.context.maxSubstitutions ?? 5;
-    if (minute < 46 || minute > 88 || t.subsUsed >= maxSubs) return;
+    if (minute < 46 + Math.max(0, bs.delay) || minute > 88 || t.subsUsed >= maxSubs) return;
     const windowOpen = t.subWindows.has(minute) || t.subWindows.size < 3;
     if (!windowOpen) return;
     const on = this.onPitch(t).filter((r) => !r.isGkNow);
@@ -1038,7 +1079,8 @@ export class MatchSimulation {
       let best = cands[0] as RP;
       let bestS = -Infinity;
       for (const c of cands) {
-        let s = slotScore(c.p, slot);
+        // Un banquillo flojo a veces mete al de más nombre aunque no encaje en el puesto
+        let s = bs.subsByName ? c.p.ca / 10 : slotScore(c.p, slot);
         if (diff < 0 && (slot.position === 'ST' || slot.position === 'AM')) s *= 1.05;
         if (s > bestS) { bestS = s; best = c; }
       }
@@ -1122,15 +1164,25 @@ export class MatchSimulation {
   }
 
   // ------------------------------------------------ fase de posesión
-  private pressBonus(def: TS, band: number): number {
+  private pressBonus(def: TS, band: number, carrier: RP | null = null): number {
     let b = 0;
     if (band <= def.inst.pressLine + 1) {
-      // Un equipo cansado presiona peor
+      // Un equipo cansado presiona peor; y la presión rinde más contra quien conduce con poca técnica
       const fresh = def.freshness;
-      b += ((def.inst.pressIntensity - 3) * 0.3 + 0.1) * (fresh * fresh);
+      const tech = carrier ? this.pressResistance(carrier) : 11;
+      const vsTech = clamp(1 + (11 - tech) * this.cfg.instructions.pressVsTech, 0.3, 1.8);
+      b += ((def.inst.pressIntensity - 3) * 0.3 * vsTech + 0.1) * (fresh * fresh);
     }
-    if (band >= 5) b += (3 - def.inst.defensiveLine) * 0.22;
+    // Bloque bajo: algo más de gente cerca del área (el riesgo de la línea alta depende del rival: lineEdge)
+    if (band >= 5) b += (3 - def.inst.defensiveLine) * 0.08;
+    // Línea adelantada: el equipo está más junto y recupera antes en campo rival
+    if (band <= 3) b += Math.max(0, def.inst.defensiveLine - 3) * 0.12;
     return b;
+  }
+
+  /** Resistencia a la presión de quien lleva el balón (1-20): primer toque, técnica, compostura y pase. */
+  private pressResistance(r: RP): number {
+    return (this.eff(r, 'firstTouch') + this.eff(r, 'technique') + this.eff(r, 'composure') + this.eff(r, 'passing')) / 4;
   }
 
   private numbers(att: TS, def: TS): number {
@@ -1144,7 +1196,8 @@ export class MatchSimulation {
       counter = this.rng.chance(clamp(p, 0, 0.65));
     }
     const counterPressed = att.inst.counterPress && this.rng.chance(0.5);
-    const exposure = Math.max(0, att.mentality - 4) * 0.25;
+    const exposure = Math.max(0, att.mentality - 4) * this.cfg.management.exposurePerStep
+      + Math.max(0, att.inst.defensiveLine - 3) * this.cfg.instructions.counterVsLine * (def.inst.counterAttack ? 1.5 : 1);
     this.next = { side: def.side, band: clamp(7 - band, 0, 7), lane: clamp(4 - lane, 0, 4), carrier: winner, counter, counterPressed, exposure };
   }
 
@@ -1168,9 +1221,9 @@ export class MatchSimulation {
     for (let stepN = 0; stepN < 12; stepN++) {
       att.actions++;
       // Términos situacionales (presión, compacidad, superioridad, contras…), escalados para no depender de k
-      const defBonus = this.cfg.situationalWeight * (this.pressBonus(def, b) + this.numbers(att, def) + this.densityTerm(def, b, l)
+      const defBonus = this.cfg.situationalWeight * (this.pressBonus(def, b, carrier) + this.numbers(att, def) + this.densityTerm(def, b, l)
         + (counter && stepN < 3 ? -1.1 - exposure : 0) + (counterPressed && stepN === 0 ? 0.9 : 0)
-        + def.mental.aggression * 0.2 - this.lateOpenness());
+        + def.mental.aggression * 0.2 - this.lateOpenness() + this.mentalityTerm(att, def, b));
       const intent = oneOnOne ? 'shoot' : this.chooseIntent(att, carrier, b, l, counter, urgency, boxCrowd);
 
       if (intent === 'shoot') {
@@ -1270,8 +1323,11 @@ export class MatchSimulation {
       }
       carrier.st.passes++;
       att.stats.passes++;
+      const lineEdge = intent === 'through' ? this.lineEdge(def, receiver, interceptor) : 0;
       const attack = 0.65 * this.q(carrier, qp) + 0.35 * this.q(receiver, intent === 'through' ? Q_RUN : Q_RECEIVE)
-        + (intent === 'through' && interceptor ? this.paceEdge(receiver, interceptor) * 0.6 : 0);
+        + (intent === 'through' && interceptor ? this.paceEdge(receiver, interceptor) * 0.6 : 0) + lineEdge;
+      // Ritmo alto con pasadores flojos: más balones perdidos
+      bias -= Math.max(0, att.inst.tempo - 3) * this.cfg.instructions.tempoRisk * Math.max(0, 12 - this.eff(carrier, 'passing'));
       const defence = interceptor ? this.q(interceptor, Q_INTERCEPT) + defBonus : 5;
       const p = logistic(attack, defence, this.cfg.k, bias + (counter && intent !== 'short' ? 0.3 : 0));
       const ok = this.rng.next() < p;
@@ -1285,7 +1341,8 @@ export class MatchSimulation {
         b = nb;
         l = nl;
         if (intent === 'through') {
-          oneOnOne = this.rng.chance(0.35);
+          // Con la línea adelantada y un delantero más rápido, el pase al hueco acaba más veces en mano a mano
+          oneOnOne = this.rng.chance(clamp(0.35 + lineEdge * 0.04, 0.15, 0.6));
           if (!oneOnOne) b = 7;
         }
         continue;
@@ -1310,6 +1367,17 @@ export class MatchSimulation {
     this.turnover(att, def, this.pickByZone(def, false, b, l), b, l);
   }
 
+  /**
+   * Efecto de la mentalidad en la jugada: atacar con más gente facilita el último tercio; un bloque defensivo
+   * bajo y junto lo dificulta. (Positivo = ventaja para quien defiende.)
+   */
+  private mentalityTerm(att: TS, def: TS, band: number): number {
+    const m = this.cfg.management;
+    const push = band >= 5 ? m.push * Math.max(0, att.mentality - 4) : 0;
+    const block = m.block * Math.max(0, 4 - def.mentality) * (band >= 4 ? 1 : 0.5);
+    return block - push;
+  }
+
   /** Urgencia por marcador/tiempo (multiplica el riesgo). */
   private urgency(t: TS): number {
     const opp = this.teams[t.side === 0 ? 1 : 0];
@@ -1326,6 +1394,19 @@ export class MatchSimulation {
     const [h, a] = this.teams;
     if (h.goals !== a.goals || this.curMinute < 65 || this.wentToExtraTime) return 0;
     return this.cfg.drawAversion * (this.curMinute >= 80 ? 1.6 : 0.8);
+  }
+
+  /**
+   * Pase al hueco según la altura de la línea rival: con la línea adelantada el espacio a la espalda premia al
+   * delantero que es más rápido que su defensor (y castiga al lento); con la línea baja ese espacio se cierra.
+   */
+  private lineEdge(def: TS, receiver: RP, defender: RP | null): number {
+    const line = def.inst.defensiveLine - 3;
+    if (line === 0) return 0;
+    const sa = (this.eff(receiver, 'pace') + this.eff(receiver, 'acceleration')) / 2;
+    const sd = defender ? (this.eff(defender, 'pace') + this.eff(defender, 'acceleration')) / 2 : sa;
+    const cf = this.cfg.instructions.lineVsPace * this.cfg.situationalWeight;
+    return line > 0 ? line * cf * (sa - sd + 1) * 1.5 : line * cf * 3;
   }
 
   /** Ventaja de velocidad y aceleración efectivas (incluye fatiga): piernas frescas contra rival cansado. */
@@ -1539,14 +1620,15 @@ export class MatchSimulation {
     // Defensores cerca: peor ángulo y más presión (no afecta a penaltis ni faltas directas)
     const crowdable = kind === 'open' || kind === 'longshot' || kind === 'header' || kind === 'cornerHeader';
     const dens = crowdable ? this.density(def, b, l) - this.cfg.compactness.ref : 0;
-    const crowd = clamp(1 - dens * this.cfg.compactness.xg, 0.7, 1.25);
+    const deepBlock = crowdable ? Math.max(0, 4 - def.mentality) * this.cfg.management.blockXg : 0;
+    const crowd = clamp(1 - dens * this.cfg.compactness.xg, 0.7, 1.25) * (1 - deepBlock);
     const sqw = this.cfg.shotQuality;
     const chance = base * Math.exp((sq - 10) * (kind === 'penalty' ? 0.02 : sqw.finisher)) * (counter ? x.counterBonus : 1) * crowd;
     const pGoal = clamp(chance * Math.exp((10 - gq) * (kind === 'penalty' ? 0.025 : sqw.keeper)), 0.005, 0.97);
     const xg = pGoal;
     const pOnTarget = clamp(0.29 + (sq - 10) * 0.014 + chance * 0.55, pGoal + 0.02, 0.92);
     const blockable = kind === 'open' || kind === 'longshot';
-    const pBlock = blockable ? clamp((kind === 'longshot' ? 0.3 : 0.2) + dens * this.cfg.compactness.block, 0.05, 0.5) : 0;
+    const pBlock = blockable ? clamp((kind === 'longshot' ? 0.3 : 0.2) + dens * this.cfg.compactness.block + deepBlock * 0.4, 0.05, 0.55) : 0;
 
     shooter.st.shots++;
     shooter.st.xg += xg;

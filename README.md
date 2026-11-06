@@ -151,6 +151,42 @@ Además, `tests/decisions.test.ts` impide que estas relaciones se rompan en el f
   (recuperador 14 acciones defensivas por 90' frente a 8 del mediapunta); los duelos de velocidad
   usan atributos efectivos, de modo que el suplente fresco gana más regates.
 
+### Gestión del partido, nivel del entrenador e instrucciones según el rival
+
+Medido con el mismo partido repetido (Zaragoza local contra Burgos, de nivel parecido). Las decisiones durante el
+partido se miden con **pares idénticos hasta el minuto de la decisión** (misma semilla), de 400 a 4.000 casos.
+
+| Decisión | Efecto en puntos por partido |
+|---|---|
+| Perdiendo en el 60', pasar a muy ofensiva | +0,17 |
+| Perdiendo en el 60', pasar a ofensiva | +0,10 |
+| Ganando en el 70', pasar a defensiva | +0,05 |
+| En el 65', refrescar a todo el equipo (cansancio, medida de referencia) | +0,18 |
+| En el 65', tres cambios por suplentes del mismo puesto | +0,01 (depende del banquillo) |
+| En el 65', tres cambios absurdos (delanteros por defensas) | −0,11 |
+| Línea muy adelantada contra delanteros lentos / normales / rápidos (+5 velocidad) | +0,11 / −0,11 / −0,10 |
+| Presión muy alta contra un rival poco técnico / muy técnico (±4) | +0,02 / −0,09 |
+| Ritmo muy alto con pasadores flojos (−4 en pase) | −0,24 |
+| Formación que mejor / peor encaja con la plantilla (frente al 4-3-3) | +0,07 / −0,48 |
+
+- **Mentalidad** (`management`): atacar mete más gente arriba (`push`) a cambio de contras más peligrosas
+  (`exposurePerStep`); un bloque bajo (`block`, `blockXg`) deja tirar al rival, pero con peores ocasiones y más
+  tiros bloqueados.
+- **Cansancio**: las curvas de fatiga (`fatiguePhys`, `fatigueOther`) pesan más en la segunda parte, así que los
+  cambios a tiempo y un banquillo con nivel dan ventaja.
+- **Instrucciones** (`instructions`): la línea adelantada premia al delantero más rápido que su defensor
+  (`lineVsPace`) y expone a las contras (`counterVsLine`), pero recupera antes en campo rival; la presión rinde
+  según la técnica de quien conduce (`pressVsTech`); el ritmo alto castiga a los pasadores flojos (`tempoRisk`).
+- **Nivel del entrenador de la IA**: media de «táctica» y «conocimiento táctico» (1-20). Fuera del partido elige
+  la formación que mejor encaja con su plantilla; los de nivel bajo son más tercos con su sistema preferido y se
+  equivocan más al valorar los demás (aciertan el mejor sistema el 68 % de las veces con nivel 16 o más, el 20 %
+  con nivel 8 o menos) y a veces leen mal la mentalidad de salida. Durante el partido, los de nivel bajo
+  reaccionan más tarde, a veces no reaccionan cuando pierden o se pasan, y a veces cambian por nombre y no por
+  encaje (mismo equipo: 1,68 puntos por partido con un banquillo de nivel 4 frente a 1,75 con uno de nivel 19).
+  En el equipo del usuario con el asistente activado decide el segundo entrenador.
+- Calibración tras los cambios (temporada completa de la base real): 2,65-3,01 goles por partido en las grandes
+  ligas, 44-52 % de victorias locales y 20-26 % de empates.
+
 **Empates:** el enunciado pide "10 % de empates ajustable". Con ~2,6 goles entre equipos iguales,
 la estadística da de forma natural un 25-28 % (como en el fútbol real), así que el valor por
 defecto queda en ese rango y el porcentaje se ajusta con `drawAversion` (0-4): con empate a partir

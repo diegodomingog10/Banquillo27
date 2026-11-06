@@ -651,13 +651,24 @@ function strength(squad: readonly Player[]): number {
 }
 
 /** Táctica de la IA: formación preferida del entrenador y mentalidad según la diferencia de nivel. */
-/** Ventaja de la formación preferida del entrenador al elegir sistema (su identidad pesa, pero no manda). */
-const PREFERRED_BONUS = 1.025;
+/**
+ * Nivel táctico (1-20) de quien decide en el banquillo: media de «táctica» y «conocimiento táctico» del
+ * entrenador (o del segundo entrenador, en el equipo del usuario con el asistente). 11 si no hay nadie.
+ */
+export function benchSkill(state: GameState, clubId: string, role: 'manager' | 'assistantManager' = 'manager'): number {
+  const s = state.world.staff.find((x) => x.clubId === clubId && x.role === role)
+    ?? (role === 'assistantManager' ? state.world.staff.find((x) => x.clubId === clubId && x.role === 'manager') : undefined);
+  if (!s) return 11;
+  const a = s.attributes as Record<string, number>;
+  return Math.round(((a.tactical ?? 11) + (a.tacticalKnowledge ?? 11)) / 2);
+}
+
 const formationCache = new WeakMap<GameState, Map<string, { date: string; formation: string }>>();
 
 /**
  * Formación de un club de la IA: la que mejor encaja con su plantilla disponible (suma de la idoneidad de
  * cada titular para su puesto y rol), con ventaja para la preferida del entrenador. Se revisa cada semana.
+ * Un entrenador de poco nivel táctico es más terco con su sistema y se equivoca más al valorar los demás.
  */
 export function aiFormation(state: GameState, club: Club, squad: readonly Player[]): string {
   let cache = formationCache.get(state);
@@ -667,6 +678,10 @@ export function aiFormation(state: GameState, club: Club, squad: readonly Player
   const manager = state.world.staff.find((s) => s.clubId === club.id && s.role === 'manager');
   const preferred = manager?.preferredFormation && FORMATIONS[manager.preferredFormation] ? manager.preferredFormation : '4-4-2';
   const byId = new Map(squad.map((p) => [p.id, p]));
+  const skill = benchSkill(state, club.id);
+  const stubborn = 1.01 + (20 - skill) * 0.003; // nivel 5 → 5,5 %; nivel 18 → 1,6 %
+  const misjudge = 0.004 + (20 - skill) * 0.0025; // error al valorar cada sistema: nivel 5 → ±4 %; nivel 18 → ±1 %
+  const rng = rngFor(state, `formacion:${club.id}:${state.date}`);
   let best = preferred;
   let bestScore = -Infinity;
   for (const id of FORMATION_IDS) {
@@ -674,7 +689,8 @@ export function aiFormation(state: GameState, club: Club, squad: readonly Player
     const l = autoLineup(squad, t, 0);
     let sc = 0;
     l.starting.forEach((pid, i) => { const p = byId.get(pid); const slot = t.slots[i]; if (p && slot) sc += slotScore(p, slot); });
-    if (id === preferred) sc *= PREFERRED_BONUS;
+    sc *= 1 + rng.float(-1, 1) * misjudge;
+    if (id === preferred) sc *= stubborn;
     if (sc > bestScore) { bestScore = sc; best = id; }
   }
   cache.set(club.id, { date: state.date, formation: best });
@@ -684,7 +700,11 @@ export function aiFormation(state: GameState, club: Club, squad: readonly Player
 export function aiTactic(state: GameState, club: Club, squad: readonly Player[], opponentStrength: number, home: boolean): TeamTactic {
   const formation = aiFormation(state, club, squad);
   const diff = strength(squad) - opponentStrength + (home ? 4 : -4);
-  const mentality = clamp(Math.round(4 + diff / 14), 2, 6) as Mentality;
+  // Un entrenador flojo lee peor el partido: a veces sale más (o menos) atrevido de lo que toca
+  const skill = benchSkill(state, club.id);
+  const rng = rngFor(state, `mentalidad:${club.id}:${state.date}`);
+  const misread = rng.chance((20 - skill) * 0.025) ? (rng.chance(0.5) ? 1 : -1) : 0;
+  const mentality = clamp(Math.round(4 + diff / 14) + misread, 2, 6) as Mentality;
   const counter = diff < -8;
   return tacticFromFormation(formation, mentality, { counterAttack: counter, pressIntensity: diff > 10 ? 4 : 3 });
 }
@@ -709,6 +729,7 @@ function teamInput(state: GameState, club: Club, opponentStrength: number, home:
     lineup: isUser ? resolveUserLineup(state) : undefined,
     familiarity: isUser ? Math.round(state.tacticFamiliarity) : 80,
     ai: true,
+    managerSkill: benchSkill(state, club.id, isUser ? 'assistantManager' : 'manager'),
   };
 }
 
