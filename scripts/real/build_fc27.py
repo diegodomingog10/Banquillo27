@@ -459,12 +459,18 @@ for club, ps in club_players.items():
         'stadium': (tmc['stadium_name'] if tmc and tmc['stadium_name'] else ''),
         'capacity': (tmc['stadium_seats'] if tmc and tmc['stadium_seats'] and tmc['stadium_seats'] != '0' else ''),
         'home_shirt': '', 'home_secondary': '', 'home_shorts': '', 'away_shirt': '', 'away_secondary': '', 'away_shorts': '',
+        'future_stadium_name': '', 'future_stadium_capacity': '', 'future_stadium_opens': '',
     }
     m = manual_clubs.get(club)
     if m:
         entry['stadium'] = m.get('estadio', '')
         entry['capacity'] = m.get('aforo', '')
         entry.update(m.get('equipacion', {}))
+        fut = m.get('estadio_futuro')
+        if fut:
+            entry['future_stadium_name'] = fut.get('nombre', '')
+            entry['future_stadium_capacity'] = fut.get('aforo', '')
+            entry['future_stadium_opens'] = fut.get('apertura', '')
     clubs_out.append(entry)
 # Reputación de los clubes añadidos a mano: la del club de referencia que indique su ficha
 rep_by_name = {c['name']: c['reputation'] for c in clubs_out}

@@ -134,3 +134,26 @@ describe('partida y bucle Continuar', () => {
     expect((await listSaves()).some((m) => m.id === meta.id)).toBe(false);
   });
 });
+
+describe('estadio nuevo', () => {
+  it('el club se traslada al estadio nuevo el día de su apertura', () => {
+    const s = fresh();
+    const club = s.world.clubs.find((c) => c.id === userClubId)!;
+    const before = { capacity: club.stadium.capacity, tickets: club.finances.seasonIncome.tickets };
+    const opens = '2026-07-20';
+    club.futureStadium = { name: 'Estadio Nuevo', capacity: before.capacity * 2, opens };
+    // continueGame avanza varios días de golpe: se comprueba en cada parada
+    let guard = 0;
+    while (s.date < '2026-07-22' && guard++ < 500) {
+      if (s.date <= opens) expect(club.stadium.name).not.toBe('Estadio Nuevo');
+      resolveAll(s);
+      const r = continueGame(s, 1);
+      if (r.stop === 'userMatch') playUserMatch(s);
+    }
+    expect(club.stadium.name).toBe('Estadio Nuevo');
+    expect(club.stadium.capacity).toBe(before.capacity * 2);
+    expect(club.futureStadium).toBeNull();
+    expect(club.finances.seasonIncome.tickets).toBeGreaterThan(before.tickets * 1.9);
+    expect(s.inbox.some((m) => m.template?.key === 'stadiumOpened')).toBe(true);
+  });
+});

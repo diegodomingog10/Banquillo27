@@ -283,6 +283,11 @@ export const Club = z.object({
     length: z.number().int().min(90).max(120).default(105),
     width: z.number().int().min(45).max(90).default(68),
   }),
+  /** Estadio en construcción: el club se traslada a él el día `opens`. */
+  futureStadium: z
+    .object({ name: z.string().min(1), capacity: z.number().int().min(500).max(150000), opens: IsoDate })
+    .nullable()
+    .default(null),
   facilities: z.object({
     training: Attr,
     youth: Attr,

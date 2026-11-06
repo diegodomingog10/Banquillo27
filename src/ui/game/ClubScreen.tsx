@@ -25,7 +25,7 @@ export function ClubScreen() {
         </div>
         <div className="flex flex-wrap gap-7">
           <Stat label="Reputación" value={c.reputation.toLocaleString('es')} />
-          <Stat label="Estadio" value={c.stadium.capacity.toLocaleString('es')} hint={c.stadium.name} />
+          <Stat label="Estadio" value={c.stadium.capacity.toLocaleString('es')} hint={c.futureStadium ? `${c.stadium.name} · en obras: ${c.futureStadium.name} (${c.futureStadium.capacity.toLocaleString('es')}), apertura ${c.futureStadium.opens.split('-').reverse().join('/')}` : c.stadium.name} />
           <Stat label="Títulos" value={c.titles.length} />
         </div>
       </Card>

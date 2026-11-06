@@ -380,6 +380,7 @@ export function clubView(state: GameState, clubId: string) {
     league: league ? { id: league.id, name: league.name } : null,
     position: (() => { const r = league ? leagueTable(state, league.id).find((x) => x.clubId === clubId) : undefined; return r && r.played > 0 ? r.position : null; })(),
     stadium: club.stadium,
+    futureStadium: club.futureStadium ?? null,
     facilities: club.facilities,
     finances: club.finances,
     objectives: club.boardObjectives.map((o) => t(`objective.${o.type}`, { target: o.target ?? '' })),

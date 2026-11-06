@@ -9,7 +9,7 @@
  *   partida y del id del partido.
  * - Módulo puro (sin React): se ejecuta en un Web Worker.
  */
-import { mainPosition } from '../data/ability';
+import { mainPosition, roundMoney } from '../data/ability';
 import type { BoardObjective, Club, Competition, Match, MatchEvent, Message, Player, SeasonStats, WorldDatabase } from '../data/schema';
 import { t } from '../i18n';
 import { buildSeasonCalendar, inRanges, leagueDates, midweekDates, pickSpread, roundRobin, seasonLabel, type SeasonCalendar } from './calendar';
@@ -553,6 +553,30 @@ function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 }
 
+/**
+ * Traslado a un estadio nuevo cuando termina su construcción. Los ingresos de taquilla
+ * previstos y los abonados crecen con el aforo; la asistencia de cada partido ya depende del aforo.
+ */
+function openNewStadiums(state: GameState): void {
+  for (const club of state.world.clubs) {
+    const next = club.futureStadium;
+    if (!next || state.date < next.opens) continue;
+    const old = club.stadium;
+    const ratio = next.capacity / Math.max(1, old.capacity);
+    club.stadium = { ...old, name: next.name, capacity: next.capacity, pitchCondition: 100 };
+    club.futureStadium = null;
+    club.finances.seasonIncome.tickets = roundMoney(club.finances.seasonIncome.tickets * ratio);
+    club.finances.seasonTicketHolders = Math.min(next.capacity, Math.round(club.finances.seasonTicketHolders * ratio));
+    if (club.id === state.userClubId) {
+      addMessage(state, {
+        type: 'board', priority: 'high', key: 'stadiumOpened', sender: `Directiva de ${club.name}`,
+        params: { club: club.name, stadium: next.name, capacity: next.capacity.toLocaleString('es'), old: old.name },
+        related: { clubId: club.id },
+      });
+    }
+  }
+}
+
 /** Procesa el día actual. Devuelve un motivo de parada (sin avanzar) o null (día completado). */
 function advanceDay(state: GameState): { reason: StopReason; fixtureId?: string } | null {
   const d = state.date;
@@ -572,6 +596,8 @@ function advanceDay(state: GameState): { reason: StopReason; fixtureId?: string 
     processSeasonEnd(state);
     return { reason: 'seasonEnd' };
   }
+
+  openNewStadiums(state);
 
   // 2. Mercado y parones
   for (const w of cal.windows) {

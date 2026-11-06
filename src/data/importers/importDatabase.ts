@@ -498,6 +498,13 @@ class Importer {
       const city = String(pick(rec.data, CLUB_FIELDS.city) ?? name);
       if (!pick(rec.data, CLUB_FIELDS.city)) estimated.push('city');
 
+      const fsName = pick(rec.data, CLUB_FIELDS.futureStadiumName);
+      const fsCapacity = num('futureStadiumCapacity', CLUB_FIELDS.futureStadiumCapacity);
+      const fsOpens = String(pick(rec.data, CLUB_FIELDS.futureStadiumOpens) ?? '');
+      const futureStadium = fsName && fsCapacity && /^\d{4}-\d{2}-\d{2}$/.test(fsOpens)
+        ? { name: String(fsName), capacity: Math.round(fsCapacity), opens: fsOpens }
+        : null;
+
       const draft = {
         id,
         name,
@@ -515,6 +522,7 @@ class Importer {
           length: 105,
           width: 68,
         },
+        futureStadium,
         facilities: {
           training: Math.round(training ?? 0),
           youth: Math.round(youth ?? 0),

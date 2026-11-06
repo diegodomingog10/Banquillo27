@@ -173,6 +173,7 @@ function makeClub(
       length: rng.int(100, 110),
       width: rng.int(64, 72),
     },
+    futureStadium: null,
     facilities: { training: fac(facBase), youth: fac(facBase), youthRecruitment: fac(facBase - 1), juniorCoaching: fac(facBase - 1) },
     finances: {
       balance: roundMoney(revenue * rng.float(-0.05, 0.4)),
