@@ -10,6 +10,7 @@ import { bestRoleFor, ROLE_BY_ID, roleSuitability, rolesForPosition } from '../d
 import type { Player } from '../data/schema';
 import { t } from '../i18n';
 import { ageAt } from './date';
+import { clamp } from './rng';
 import { indexes, leagueOf, leagueTable, type GameState } from './game';
 import { isAvailable, positionRating, slotScore } from './lineup';
 import { resolveUserLineup } from './manager';
@@ -241,7 +242,19 @@ export function tacticsView(state: GameState) {
   const squad = ix.squads.get(state.userClubId) ?? [];
   const lineup = resolveUserLineup(state);
   const tactic = state.userTactic;
-  const players = squad.map((p) => ({
+  // Idoneidad relativa (0-5 en medios puntos): las notas absolutas (1-20) de una plantilla se parecen mucho entre
+  // sí, así que se comparan con una referencia para que se vean las diferencias.
+  //  · fit: frente al mejor de la plantilla para ese hueco (5 = el mejor; −0,7 por punto de diferencia).
+  //  · roleFit / roleStars: frente al mejor rol del jugador en ese puesto (5 = su rol ideal; −1,6 por punto).
+  const half = (v: number) => Math.round(clamp(v, 0.5, 5) * 2) / 2;
+  const slotScores = squad.map((p) => tactic.slots.map((slot) => slotScore(p, slot)));
+  const bestBySlot = tactic.slots.map((_, i) => Math.max(...slotScores.map((row) => row[i] ?? 0)));
+  const roleStarsOf = (p: Player, pos: Position) => {
+    const scores = rolesForPosition(pos).map((r) => [r.id, roleSuitability(p.attributes, r)] as const);
+    const best = Math.max(...scores.map(([, s]) => s));
+    return Object.fromEntries(scores.map(([id, s]) => [id, { stars: half(5 - (best - s) * 1.6), score: Math.round(s * 10) / 10 }]));
+  };
+  const players = squad.map((p, pi) => ({
     id: p.id,
     name: nameOf(p),
     shortName: p.commonName ?? p.lastName,
@@ -250,12 +263,14 @@ export function tacticsView(state: GameState) {
     available: isAvailable(p),
     injury: p.injury ? p.injury.daysRemaining : null,
     suspended: p.cards.suspendedMatches,
-    /** Idoneidad 0-5 para cada hueco de la táctica actual. */
-    fit: tactic.slots.map((slot) => Math.round((slotScore(p, slot) / 20) * 50) / 10),
-    roleFit: tactic.slots.map((slot) => {
-      const role = ROLE_BY_ID.get(slot.role);
-      return role ? Math.round((roleSuitability(p.attributes, role) / 20) * 50) / 10 : 0;
-    }),
+    /** Idoneidad 0-5 para cada hueco, comparada con el mejor de la plantilla para ese hueco. */
+    fit: tactic.slots.map((_, i) => half(5 - ((bestBySlot[i] ?? 0) - (slotScores[pi]?.[i] ?? 0)) * 0.7)),
+    /** Nota absoluta (1-20) para cada hueco: idoneidad al rol × dominio de la posición × forma física. */
+    fitScore: tactic.slots.map((_, i) => Math.round((slotScores[pi]?.[i] ?? 0) * 10) / 10),
+    /** Encaje 0-5 del rol de cada hueco, comparado con el mejor rol del jugador en ese puesto. */
+    roleFit: tactic.slots.map((slot) => roleStarsOf(p, slot.position)[slot.role]?.stars ?? 0),
+    /** Encaje de cada rol posible en cada hueco: { estrellas 0-5, nota 1-20 }. */
+    roleStars: tactic.slots.map((slot) => roleStarsOf(p, slot.position)),
     positionRating: tactic.slots.map((slot) => positionRating(p, slot.position)),
   }));
   return {

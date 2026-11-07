@@ -228,7 +228,10 @@ export function TacticsScreen() {
                   const r = ROLE_BY_ID.get(e.target.value);
                   setSlotField(slot, { role: e.target.value, duty: r && !r.duties.includes(sel.duty as never) ? (r.duties[0] as typeof sel.duty) : sel.duty });
                 }} className="h-[38px] w-full rounded-[9px] border border-accent-line bg-card px-2.5 text-[13px]">
-                  {roles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                  {roles.map((r) => {
+                    const rs = selPlayer?.roleStars[slot]?.[r.id];
+                    return <option key={r.id} value={r.id}>{rs ? `${r.label} · ${String(rs.stars).replace('.', ',')}/5` : r.label}</option>;
+                  })}
                 </select>
                 <div className="mt-2.5">
                   <Segmented label="Deber" value={sel.duty} onChange={(d) => setSlotField(slot, { duty: d })}
@@ -236,7 +239,20 @@ export function TacticsScreen() {
                 </div>
                 {selPlayer && (
                   <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted">
-                    <span className="flex items-center gap-2">Idoneidad para el rol <Dots value={selPlayer.roleFit[slot] ?? 0} /></span>
+                    <span className="flex items-center gap-2" title="Comparado con el mejor rol de este jugador en este puesto (5 = su rol ideal)">
+                      Encaje con el rol <Dots value={selPlayer.roleFit[slot] ?? 0} />
+                      <span className="text-faint">{String(selPlayer.roleStars[slot]?.[sel.role]?.score ?? '').replace('.', ',')} / 20</span>
+                    </span>
+                    {(() => {
+                      const opts = Object.entries(selPlayer.roleStars[slot] ?? {});
+                      const best = opts.reduce<[string, { stars: number; score: number }] | null>((a, o) => (!a || o[1].score > a[1].score ? o : a), null);
+                      return best && best[0] !== sel.role
+                        ? <span>Su mejor rol aquí: <button type="button" className="text-accent-text underline-offset-2 hover:underline" onClick={() => {
+                            const r = ROLE_BY_ID.get(best[0]);
+                            setSlotField(slot, { role: best[0], duty: r && !r.duties.includes(sel.duty as never) ? (r.duties[0] as typeof sel.duty) : sel.duty });
+                          }}>{roles.find((r) => r.id === best[0])?.label ?? best[0]}</button></span>
+                        : null;
+                    })()}
                     <span className="flex items-center gap-2">Dominio de la posición <Dots value={(selPlayer.positionRating[slot] ?? 1) / 4} /></span>
                   </div>
                 )}
@@ -257,7 +273,7 @@ export function TacticsScreen() {
               {benchPlayers.map((p) => <PlayerRow key={p.id} p={p} where="bench" slot={slot} slotPos={sel.position} benchFull={bench.length >= 9} onDrag={setDrag} onPlace={place} onBench={toBench} onUnbench={fromBench} />)}
               {benchPlayers.length === 0 && <li className="py-2 text-[13px] text-muted">Arrastra aquí a los suplentes.</li>}
             </ul>
-            <div className="mb-1 mt-4 text-xs uppercase tracking-[0.08em] text-muted">Resto de la plantilla · ordenado por idoneidad para {t(`pos.${sel.position}`)}</div>
+            <div className="mb-1 mt-4 text-xs uppercase tracking-[0.08em] text-muted">Resto de la plantilla · ordenado por idoneidad para {t(`pos.${sel.position}`)} (5 = el mejor de tu plantilla)</div>
             <ul className="flex flex-col gap-0.5">{reserves.map((p) => <PlayerRow key={p.id} p={p} where="reserve" slot={slot} slotPos={sel.position} benchFull={bench.length >= 9} onDrag={setDrag} onPlace={place} onBench={toBench} onUnbench={fromBench} />)}</ul>
           </Card>
         </div>
@@ -286,7 +302,9 @@ function PlayerRow({ p, where, slot, slotPos, benchFull, onDrag, onPlace, onBenc
       {p.injury !== null && <Badge tone="bad">Lesión</Badge>}
       {p.suspended > 0 && <Badge tone="warn">Sanción</Badge>}
       <Bar value={p.condition} width={36} label={`Condición de ${p.name}`} />
-      <Dots value={p.fit[slot] ?? 0} label={`Idoneidad para ${t(`pos.${slotPos}`)}: ${p.fit[slot]} de 5`} />
+      <span title={`Idoneidad para ${t(`posLong.${slotPos}`)}: ${String(p.fitScore[slot] ?? '').replace('.', ',')} / 20 (5 puntos = el mejor de tu plantilla para este puesto)`}>
+        <Dots value={p.fit[slot] ?? 0} label={`Idoneidad para ${t(`pos.${slotPos}`)}: ${p.fit[slot]} de 5 respecto al mejor de la plantilla`} />
+      </span>
       <button type="button" onClick={() => onPlace(p.id, slot)} className="rounded-md px-2 py-0.5 text-xs text-accent-text hover:bg-accent-bg" aria-label={`Poner a ${p.name} en ${t(`posLong.${slotPos}`)}`}>Poner</button>
       {where === 'bench'
         ? <button type="button" onClick={() => onUnbench(p.id)} className="rounded-md p-1 text-muted hover:text-text" aria-label={`Quitar a ${p.name} del banquillo`}><Icon name="close" size={13} /></button>
