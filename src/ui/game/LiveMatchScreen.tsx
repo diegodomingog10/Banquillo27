@@ -15,7 +15,16 @@ type Info = Awaited<ReturnType<typeof game<'liveStart'>>>;
 type Speed = 0 | 1 | 2 | 4;
 type Mode = '2d' | 'key';
 
-const SPEED_MS: Record<1 | 2 | 4, number> = { 1: 1100, 2: 550, 4: 260 };
+/**
+ * Duración de cada acción (pase, regate, tiro…) en el campo: a 1x, un segundo por acción, como un partido
+ * real (unos 14 minutos el partido completo); 2x y 4x la dividen. La velocidad se mide por acción y no por
+ * fase, para que cada velocidad se note y los jugadores no corran más cuantas más acciones tenga la fase.
+ */
+const ACTION_MS: Record<1 | 2 | 4, number> = { 1: 1000, 2: 500, 4: 250 };
+/** En «Momentos clave» se muestra la jugada que lleva a cada momento: sus últimas acciones. */
+const KEY_LEADUP = 8;
+/** Pausa entre momentos clave (tiempo para leer el comentario). */
+const KEY_GAP_MS = 1200;
 const SHOUT_ICON: Record<ShoutId, IconName> = {
   encourage: 'heart', demandMore: 'bolt', praise: 'star', focus: 'target', calmDown: 'pulse', fireUp: 'flag', showPassion: 'heart', noPressure: 'eye',
 };
@@ -41,8 +50,10 @@ export function LiveMatchScreen() {
   const [subIn, setSubIn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
+  /** Espera hasta pedir la siguiente fase: lo que dura la animación de la actual. */
+  const nextDelay = useRef(1000);
 
-  const absorb = useCallback((tk: LiveTick, userSide: 0 | 1, _homeId: string, stepMs: number) => {
+  const absorb = useCallback((tk: LiveTick, userSide: 0 | 1, _homeId: string, stepMs: number, keyOnly = false) => {
     setTick(tk);
     if (tk.comments.length) setComments((c) => [...tk.comments.slice().reverse(), ...c].slice(0, 80));
     if (tk.replay.length) {
@@ -55,7 +66,11 @@ export function LiveMatchScreen() {
         }
         return next;
       });
-      setAnim({ actions: tk.replay, step: 0, stepMs: Math.max(120, stepMs / Math.max(1, tk.replay.length)) });
+      const actions = keyOnly ? tk.replay.slice(-KEY_LEADUP) : tk.replay;
+      setAnim({ actions, step: 0, stepMs });
+      nextDelay.current = actions.length * stepMs + (keyOnly ? KEY_GAP_MS : 0);
+    } else {
+      nextDelay.current = stepMs;
     }
     if (tk.shouts.length) setShoutMsg(tk.shouts[tk.shouts.length - 1]!.summary);
     const now = Date.now();
@@ -78,17 +93,18 @@ export function LiveMatchScreen() {
   // Bucle de reproducción
   useEffect(() => {
     if (!info || speed === 0 || tick?.snapshot.finished) return;
-    const ms = mode === 'key' ? 2200 : SPEED_MS[speed];
+    const actionMs = ACTION_MS[speed];
     const id = setTimeout(async () => {
       if (busy.current) return;
       busy.current = true;
       try {
-        const tk = await game('liveTick', mode === 'key' ? { untilKey: true } : { phases: 1 });
-        absorb(tk, info.userSide, info.home.id, mode === 'key' ? 1800 : ms);
+        const key = mode === 'key';
+        const tk = await game('liveTick', key ? { untilKey: true } : { phases: 1 });
+        absorb(tk, info.userSide, info.home.id, actionMs, key);
       } finally {
         busy.current = false;
       }
-    }, ms);
+    }, Math.max(150, nextDelay.current));
     return () => clearTimeout(id);
   }, [info, speed, mode, tick, absorb]);
 
@@ -254,7 +270,7 @@ function Pitch({ teams, kits, action, stepMs, flash, cards }: {
     });
     return out;
   }, [teams, ball.x, ball.y, attackSide, action]);
-  const dur = `${Math.min(900, stepMs)}ms`;
+  const dur = `${Math.round(stepMs * 0.9)}ms`;
   const label = `Campo: ${teams[0].name} ${teams[0].goals}, ${teams[1].name} ${teams[1].goals}. ${action ? `Balón en poder de ${attackSide === 0 ? teams[0].name : teams[1].name}` : ''}`;
   return (
     <FootballPitch label={label} className="shadow-lg">
