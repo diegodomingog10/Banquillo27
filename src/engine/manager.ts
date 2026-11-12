@@ -40,13 +40,14 @@ export const DEFAULT_UI: UiPrefs = {
 
 /** Completa campos añadidos en versiones posteriores (partidas antiguas). */
 export function ensureDefaults(state: GameState): GameState {
-  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity' | 'postMatch' | 'economy' | 'scouting' | 'transfers' | 'board' | 'training' | 'dressing' | 'progression' | 'awards' | 'youthIntake'>>;
+  const s = state as GameState & Partial<Pick<GameState, 'ui' | 'userLineup' | 'tacticFamiliarity' | 'formationFamiliarity' | 'postMatch' | 'economy' | 'scouting' | 'transfers' | 'board' | 'training' | 'dressing' | 'progression' | 'awards' | 'youthIntake'>>;
   if (!s.ui) s.ui = structuredClone(DEFAULT_UI);
   for (const id of DASHBOARD_TILES) if (!s.ui.dashboard.some((t) => t.id === id)) s.ui.dashboard.push({ id, visible: true });
   s.ui.squadViews ??= [];
   s.ui.shortlist ??= [];
   if (s.userLineup === undefined) s.userLineup = null;
   if (typeof s.tacticFamiliarity !== 'number') s.tacticFamiliarity = 75;
+  s.formationFamiliarity ??= {};
   if (s.postMatch === undefined) s.postMatch = null;
   // Fase 6: economía, ojeo, mercado y directiva
   if (!s.economy) initEconomy(state);
@@ -118,7 +119,11 @@ export function setUserTactic(state: GameState, tactic: TeamTactic): void {
   if (!FORMATIONS[tactic.formation]) throw new Error(`Formación desconocida: ${tactic.formation}`);
   let fam = state.tacticFamiliarity;
   if (prev.formation !== tactic.formation) {
-    fam = Math.min(fam, Math.max(30, fam - 35));
+    // Cada sistema conserva lo aprendido: se guarda el actual y, si el nuevo ya se trabajó, se recupera
+    const memory = (state.formationFamiliarity ??= {});
+    memory[prev.formation] = state.tacticFamiliarity;
+    fam = familiarityFor(state, tactic.formation);
+    delete memory[tactic.formation];
     // Reubicar a los titulares en la nueva formación por afinidad de posición
     const lineup = state.userLineup ?? resolveUserLineup(state);
     const prevPlayers = lineup.starting.map((id, i) => ({ id, pos: prev.slots[i]?.position })).filter((x) => x.id);
@@ -149,6 +154,21 @@ export function setUserLineup(state: GameState, lineup: { starting: string[]; be
   const seen = new Set(starting.filter(Boolean));
   if (seen.size !== starting.filter(Boolean).length) throw new Error('Un jugador no puede ocupar dos posiciones');
   state.userLineup = { starting, bench: lineup.bench.filter((id) => ids.has(id) && !seen.has(id)).slice(0, 9) };
+}
+
+/** Familiaridad que tendría el equipo con una formación: la guardada si ya la trabajó; si no, la de empezar de cero. */
+export function familiarityFor(state: GameState, formation: string): number {
+  if (formation === state.userTactic.formation) return state.tacticFamiliarity;
+  const saved = state.formationFamiliarity?.[formation];
+  const fresh = Math.min(state.tacticFamiliarity, Math.max(30, state.tacticFamiliarity - 35));
+  return saved === undefined ? fresh : Math.max(saved, fresh);
+}
+
+/** Lo que no se practica se olvida poco a poco: −0,1 al día en las formaciones guardadas (mínimo 30). */
+export function forgetFormations(state: GameState): void {
+  const memory = state.formationFamiliarity;
+  if (!memory) return;
+  for (const [f, v] of Object.entries(memory)) memory[f] = Math.max(30, v - 0.1);
 }
 
 /** La familiaridad crece con los días de trabajo y con los partidos jugados con el sistema. */

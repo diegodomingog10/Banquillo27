@@ -13,7 +13,8 @@ import { ageAt } from './date';
 import { clamp } from './rng';
 import { indexes, leagueOf, leagueTable, type GameState } from './game';
 import { isAvailable, positionRating, slotScore } from './lineup';
-import { resolveUserLineup } from './manager';
+import { familiarityFor, resolveUserLineup } from './manager';
+import { FORMATION_IDS } from './tactics';
 import { fixtureView } from './views';
 import { knowledgeOf, recommendation, scoutedAbility, scoutedAttributes } from './scouting';
 import { askingPrice, playerInterest, ROLE_LABEL, windowOpen, dealView } from './transfers';
@@ -277,6 +278,8 @@ export function tacticsView(state: GameState) {
     tactic,
     lineup,
     familiarity: Math.round(state.tacticFamiliarity),
+    /** Familiaridad con cada formación (la actual, las ya trabajadas y la de empezar de cero en las demás). */
+    formationFamiliarity: Object.fromEntries(FORMATION_IDS.map((f) => [f, Math.round(familiarityFor(state, f))])),
     players,
     roles: Object.fromEntries(
       (['GK', 'LB', 'CB', 'RB', 'LWB', 'RWB', 'DM', 'LM', 'CM', 'RM', 'LW', 'AM', 'RW', 'ST'] as Position[]).map((pos) => [

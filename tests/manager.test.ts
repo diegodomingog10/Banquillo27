@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { generateWorld } from '../src/data/generator/generateWorld';
 import { continueGame, indexes, newGame, playUserMatch, resolveMessage, type GameState } from '../src/engine/game';
-import { ensureDefaults, resolveUserLineup, setUserLineup, setUserTactic } from '../src/engine/manager';
+import { ensureDefaults, forgetFormations, resolveUserLineup, setUserLineup, setUserTactic } from '../src/engine/manager';
 import { clubView, opponentAnalysis, playerProfile, search, squadTable, tacticsView } from '../src/engine/profileViews';
 import { tacticFromFormation } from '../src/engine/tactics';
 
@@ -41,6 +41,24 @@ describe('gestión del equipo del usuario', () => {
     const fam = s.tacticFamiliarity;
     setUserTactic(s, { ...s.userTactic, instructions: { ...s.userTactic.instructions, tempo: 5 } });
     expect(s.tacticFamiliarity).toBe(Math.max(40, fam - 2));
+  });
+
+  it('cada formación conserva su familiaridad: al volver a una ya trabajada se recupera', () => {
+    const s = fresh();
+    const a = s.userTactic.formation;
+    const b = a === '3-5-2' ? '4-4-2' : '3-5-2';
+    s.tacticFamiliarity = 88; // diez jornadas con el sistema A
+    setUserTactic(s, tacticFromFormation(b));
+    expect(s.tacticFamiliarity).toBeLessThanOrEqual(53);
+    s.tacticFamiliarity = 60; // algo de trabajo con B
+    setUserTactic(s, tacticFromFormation(a));
+    expect(s.tacticFamiliarity).toBe(88);
+    expect(s.formationFamiliarity[b]).toBe(60);
+    // lo que no se usa se olvida poco a poco, y no baja de 30
+    for (let d = 0; d < 70; d++) forgetFormations(s);
+    expect(s.formationFamiliarity[b]).toBeCloseTo(53, 0);
+    setUserTactic(s, tacticFromFormation(b));
+    expect(s.tacticFamiliarity).toBe(53);
   });
 
   it('la familiaridad crece con los días y los partidos, y el motor usa tu once', () => {

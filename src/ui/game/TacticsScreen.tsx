@@ -120,7 +120,8 @@ export function TacticsScreen() {
   const selPlayer = starting[slot] ? byId.get(starting[slot]!) : undefined;
   const roles = view.roles[sel.position] ?? [];
   const role = ROLE_BY_ID.get(sel.role);
-  const fam = view.familiarity;
+  // La barra muestra la familiaridad de la formación elegida, aunque aún no se haya guardado
+  const fam = view.formationFamiliarity[tactic.formation] ?? view.familiarity;
   const others = view.players.filter((p) => !starting.includes(p.id));
   const benchPlayers = bench.map((id) => byId.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
   const reserves = others.filter((p) => !bench.includes(p.id)).sort((a, b) => (b.fit[slot] ?? 0) - (a.fit[slot] ?? 0));
@@ -134,10 +135,10 @@ export function TacticsScreen() {
         <h1 className="font-display text-[22px] font-bold tracking-tight">Tácticas</h1>
         <label className="flex items-center gap-2 text-[13px] text-muted">Formación
           <select value={tactic.formation} onChange={(e) => changeFormation(e.target.value)} className="h-9 rounded-[9px] border border-line2 bg-card px-2.5 font-semibold text-text">
-            {FORMATION_IDS.map((f) => <option key={f}>{f}</option>)}
+            {FORMATION_IDS.map((f) => <option key={f} value={f}>{`${f} · ${view.formationFamiliarity[f] ?? '–'} %`}</option>)}
           </select>
         </label>
-        <div className="flex items-center gap-2.5 text-[13px] text-muted" title="Los jugadores aprenden el sistema con los días y los partidos. Cambiar de formación la reduce bastante; cambiar instrucciones, un poco.">
+        <div className="flex items-center gap-2.5 text-[13px] text-muted" title="Los jugadores aprenden el sistema con los días y los partidos. Cada formación conserva lo aprendido (se olvida poco a poco si no se usa); una formación nueva empieza bastante más abajo. Cambiar instrucciones la reduce un poco.">
           Familiaridad <Bar value={fam} tone={toneFor(fam)} width={120} label="Familiaridad táctica" /><span className="font-semibold text-text">{fam} %</span>
         </div>
         <div className="flex-1" />

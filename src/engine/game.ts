@@ -19,7 +19,7 @@ import { simulateMatch, type MatchResult, type MatchTeamInput, type Weather } fr
 import { clamp, createRng, hashString } from './rng';
 import { computeStandings, type StandingRow } from './standings';
 import { FORMATIONS, FORMATION_IDS, tacticFromFormation, type Mentality, type TeamTactic } from './tactics';
-import { DEFAULT_UI, growFamiliarity, resolveUserLineup, type UiPrefs } from './manager';
+import { DEFAULT_UI, forgetFormations, growFamiliarity, resolveUserLineup, type UiPrefs } from './manager';
 import { buildPostMatch, type PostMatchState } from './postMatch';
 import { cupPrize, economyDay, initEconomy, rolloverFinances, seasonEndFinances, seasonResult, type EconomyState } from './economy';
 import { initScouting, scoutingDay, type ScoutingState } from './scouting';
@@ -153,6 +153,8 @@ export interface GameState {
   userLineup: { starting: string[]; bench: string[] } | null;
   /** Familiaridad con la táctica actual (0-100). */
   tacticFamiliarity: number;
+  /** Familiaridad guardada de las formaciones que no se usan ahora (la actual está en tacticFamiliarity). */
+  formationFamiliarity: Record<string, number>;
   /** Preferencias de interfaz guardadas con la partida (panel, vistas, lista de seguimiento). */
   ui: UiPrefs;
   /** Post-partido del último partido del usuario (informe, moral, rueda de prensa). */
@@ -385,6 +387,7 @@ export function newGame(setup: NewGameSetup): GameState {
     userTactic: tacticFromFormation('4-4-2'),
     userLineup: null,
     tacticFamiliarity: 80,
+    formationFamiliarity: {},
     ui: structuredClone(DEFAULT_UI),
     postMatch: null,
     inbox: [],
@@ -1059,6 +1062,7 @@ export function leagueTable(state: GameState, competitionId: string, season = st
 // ---------------------------------------------------------------- día a día
 function dailyUpdate(state: GameState, playedToday: Set<string>): void {
   growFamiliarity(state, 0.5 * (0.6 + state.training.plan.focus.tactical / 60));
+  forgetFormations(state);
   const recovery = new Map<string, number>();
   for (const p of state.world.players) {
     if (!playedToday.has(p.id)) {
