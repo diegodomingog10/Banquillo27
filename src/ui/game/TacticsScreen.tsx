@@ -299,7 +299,16 @@ function PlayerRow({ p, where, slot, slotPos, benchFull, onDrag, onPlace, onBenc
       className={cx('flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-[13px] hover:bg-card2', !p.available && 'opacity-60')}>
       <Icon name="grip" className="cursor-grab text-faint" />
       <Badge tone="accent" className="w-9 justify-center">{t(`pos.${p.position}`)}</Badge>
-      <span className="min-w-0 flex-1 truncate">{p.name}</span>
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="truncate">{p.name}</span>
+        {p.otherPositions.length > 0 && (
+          <span className="shrink-0 text-[11px] text-muted" title="Otras posiciones: en negrita las que domina; el resto, las que juega con soltura">
+            {p.otherPositions.map((o, i) => (
+              <span key={o.position}>{i > 0 && ' · '}<span className={o.natural ? 'font-semibold text-soft' : undefined}>{t(`pos.${o.position}`)}</span></span>
+            ))}
+          </span>
+        )}
+      </span>
       {p.injury !== null && <Badge tone="bad">Lesión</Badge>}
       {p.suspended > 0 && <Badge tone="warn">Sanción</Badge>}
       <Bar value={p.condition} width={36} label={`Condición de ${p.name}`} />

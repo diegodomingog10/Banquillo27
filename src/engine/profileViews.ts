@@ -260,6 +260,11 @@ export function tacticsView(state: GameState) {
     name: nameOf(p),
     shortName: p.commonName ?? p.lastName,
     position: mainPosition(p.positions),
+    /** Otras posiciones que puede jugar: naturales (15+) y competentes (12-14), de más a menos dominio. */
+    otherPositions: p.positions
+      .filter((x) => x.rating >= 12 && x.position !== mainPosition(p.positions))
+      .sort((a, b) => b.rating - a.rating)
+      .map((x) => ({ position: x.position, natural: x.rating >= 15 })),
     condition: Math.round(p.condition),
     available: isAvailable(p),
     injury: p.injury ? p.injury.daysRemaining : null,

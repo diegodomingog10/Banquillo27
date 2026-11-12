@@ -12,7 +12,7 @@ import { ClubLink, PlayerLink } from './shared';
 type Tr = Awaited<ReturnType<typeof game<'transfers'>>>;
 type Market = Awaited<ReturnType<typeof game<'market'>>>;
 type Scouting = Awaited<ReturnType<typeof game<'scouting'>>>;
-type Tab = 'search' | 'shortlist' | 'deals' | 'scouts' | 'listed' | 'history';
+type Tab = 'search' | 'reports' | 'shortlist' | 'deals' | 'scouts' | 'listed' | 'history';
 
 const GROUPS = [
   { value: '', label: 'Todas' }, { value: 'GK', label: 'Porteros' }, { value: 'CB', label: 'Centrales' }, { value: 'FB', label: 'Laterales' },
@@ -46,11 +46,12 @@ export function TransfersScreen() {
       </Card>
       <DeadlineCard onChange={() => { load(); setTab((x) => x); }} onOffers={() => setTab('deals')} />
       <Tabs label="Secciones de fichajes" value={tab} onChange={setTab} items={[
-        { id: 'search', label: 'Buscar', icon: 'search' }, { id: 'shortlist', label: 'Seguimiento', icon: 'star' },
+        { id: 'search', label: 'Buscar', icon: 'search' }, { id: 'reports', label: 'Informes', icon: 'docCheck' }, { id: 'shortlist', label: 'Seguimiento', icon: 'star' },
         { id: 'deals', label: `Operaciones${pendingCount ? ` (${pendingCount})` : ''}`, icon: 'transfers' }, { id: 'scouts', label: 'Ojeadores', icon: 'eye' },
         { id: 'listed', label: 'En venta y cesiones', icon: 'loan' }, { id: 'history', label: 'Historial', icon: 'history' },
       ]} />
       {tab === 'search' && <MarketSearch scope="all" />}
+      {tab === 'reports' && <MarketSearch scope="reported" />}
       {tab === 'shortlist' && <MarketSearch scope="shortlist" />}
       {tab === 'deals' && <Deals tr={tr} reload={load} />}
       {tab === 'scouts' && <Scouts />}
@@ -89,8 +90,9 @@ function DeadlineCard({ onChange, onOffers }: { onChange: () => void; onOffers: 
   );
 }
 
-function MarketSearch({ scope }: { scope: 'all' | 'shortlist' }) {
-  const [f, setF] = useState<MarketFilter>({ scope: scope === 'shortlist' ? 'shortlist' : 'all', sort: 'ability', group: null });
+function MarketSearch({ scope }: { scope: 'all' | 'shortlist' | 'reported' }) {
+  const reported = scope === 'reported';
+  const [f, setF] = useState<MarketFilter>({ scope, sort: reported ? 'recommendation' : 'ability', group: null });
   const [m, setM] = useState<Market | null>(null);
   useEffect(() => { const id = setTimeout(() => void game('market', { filter: f }).then(setM), 150); return () => clearTimeout(id); }, [f]);
   const set = (patch: Partial<MarketFilter>) => setF((x) => ({ ...x, ...patch }));
@@ -102,22 +104,33 @@ function MarketSearch({ scope }: { scope: 'all' | 'shortlist' }) {
           <select className={sel} value={f.scope} onChange={(e) => set({ scope: e.target.value as MarketFilter['scope'] })}>
             <option value="all">Todo el mundo</option><option value="known">Conocidos por los ojeadores</option><option value="league">Mi liga</option><option value="free">Agentes libres</option>
           </select></label>}
+        {reported && <label className="flex flex-col gap-1 text-xs text-muted">Recomendación
+          <select className={sel} value={f.minRec ?? ''} onChange={(e) => set({ minRec: (e.target.value || null) as MarketFilter['minRec'] })}>
+            <option value="">Todas</option><option value="A">Solo A (fichaje recomendado)</option><option value="B">A y B</option><option value="C">A, B y C</option>
+          </select></label>}
         <label className="flex flex-col gap-1 text-xs text-muted">Posición
           <select className={sel} value={f.group ?? ''} onChange={(e) => set({ group: e.target.value || null })}>{GROUPS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}</select></label>
         <label className="flex flex-col gap-1 text-xs text-muted">Edad máx.<input type="number" min={15} max={45} className={cx(sel, 'w-20')} value={f.maxAge ?? ''} onChange={(e) => set({ maxAge: e.target.value ? Number(e.target.value) : null })} /></label>
         <label className="flex flex-col gap-1 text-xs text-muted">Valor máx. (M€)<input type="number" min={0} step={0.5} className={cx(sel, 'w-24')} value={f.maxValue ? f.maxValue / 1e6 : ''} onChange={(e) => set({ maxValue: e.target.value ? Number(e.target.value) * 1e6 : null })} /></label>
         <label className="flex flex-col gap-1 text-xs text-muted">Ordenar
           <select className={sel} value={f.sort} onChange={(e) => set({ sort: e.target.value as MarketFilter['sort'] })}>
+            {reported && <><option value="recommendation">Recomendación</option><option value="recent">Informe más reciente</option></>}
             <option value="ability">Nivel estimado</option><option value="potential">Potencial estimado</option><option value="value">Valor</option><option value="age">Edad</option>
           </select></label>
         <span className="ml-auto text-xs text-muted">{m ? `${m.total.toLocaleString('es')} jugadores${m.total > m.rows.length ? ` · se muestran ${m.rows.length}` : ''}` : ''}</span>
       </div>
-      {!m ? <p className="text-sm text-muted">Buscando…</p> : m.rows.length === 0 ? <Empty>{scope === 'shortlist' ? 'No sigues a ningún jugador. Pulsa «Seguir» en su ficha.' : 'Ningún jugador cumple los filtros.'}</Empty> : (
+      {reported && m && m.pending.length > 0 && (
+        <p className="mb-3 rounded-lg bg-card2 px-3 py-2 text-[13px] text-soft">
+          <Icon name="history" size={13} className="mr-1.5 inline text-muted" />Informes en camino: {m.pending.map((x, i) => <span key={x.id}>{i > 0 && ' · '}<PlayerLink id={x.id} name={x.name} /> <span className="text-muted">({x.by}, {fmtDate(x.due)})</span></span>)}
+        </p>
+      )}
+      {!m ? <p className="text-sm text-muted">Buscando…</p> : m.rows.length === 0 ? <Empty>{scope === 'shortlist' ? 'No sigues a ningún jugador. Pulsa «Seguir» en su ficha.' : reported ? 'Tus ojeadores aún no tienen informes. Asígnales una liga o un país en «Ojeadores», o pide un informe desde la ficha de un jugador.' : 'Ningún jugador cumple los filtros.'}</Empty> : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px] text-[13px]">
             <thead><tr className="text-left text-xs uppercase tracking-[0.06em] text-muted">
               <th className="py-2 font-medium">Pos.</th><th className="font-medium">Jugador</th><th className="font-medium">Edad</th><th className="font-medium">Club</th>
-              <th className="font-medium">Nivel</th><th className="font-medium">Potencial</th><th className="text-right font-medium">Valor</th><th className="font-medium">Contrato</th><th className="font-medium">Ojeo</th>
+              <th className="font-medium">Nivel</th><th className="font-medium">Potencial</th><th className="text-right font-medium">Valor</th><th className="pl-5 font-medium">Contrato</th><th className="font-medium">Ojeo</th>
+              {reported && <th className="font-medium">Informe</th>}
             </tr></thead>
             <tbody>{m.rows.map((r) => (
               <tr key={r.id} className="border-t border-line hover:bg-card2">
@@ -128,12 +141,13 @@ function MarketSearch({ scope }: { scope: 'all' | 'shortlist' }) {
                 <td title={r.ca[0] !== r.ca[1] ? `Entre ${r.ca[0]} y ${r.ca[1]} estrellas` : undefined}><Dots value={r.caMid} /></td>
                 <td title={r.pa[0] !== r.pa[1] ? `Entre ${r.pa[0]} y ${r.pa[1]} estrellas` : undefined}><Dots value={r.paMid} variant="potential" /></td>
                 <td className="num text-right">{money(r.value)}</td>
-                <td className="text-muted">{r.expires ? fmtDate(r.expires) : '—'}</td>
-                <td><span className="flex items-center gap-2"><span className="h-1 w-10 rounded bg-[#2A2536]"><span className="block h-1 rounded bg-accent-soft" style={{ width: `${r.knowledge}%` }} /></span>{r.rec && <Badge tone={r.rec === 'A' ? 'good' : r.rec === 'B' ? 'accent' : 'neutral'}>{r.rec}</Badge>}</span></td>
+                <td className="pl-5 text-muted">{r.expires ? fmtDate(r.expires) : '—'}</td>
+                <td><span className="flex items-center gap-2"><span className="h-1 w-10 rounded bg-[#2A2536]"><span className="block h-1 rounded bg-accent-soft" style={{ width: `${r.knowledge}%` }} /></span>{r.rec && <Badge tone={r.rec === 'A' ? 'good' : r.rec === 'B' ? 'accent' : 'neutral'}>{r.rec}</Badge>}{!reported && r.reportDate && <span title={`Informe del ${fmtDate(r.reportDate)}${r.reportBy ? ` (${r.reportBy})` : ''}`}><Icon name="docCheck" size={13} className="text-accent-text" /></span>}</span></td>
+                {reported && <td className="text-muted">{r.reportDate ? fmtDate(r.reportDate) : '—'}{r.reportBy && <span className="block text-[11px]">{r.reportBy}</span>}</td>}
               </tr>
             ))}</tbody>
           </table>
-          <p className="mt-2 text-xs text-muted">Nivel y potencial son estimaciones de tus ojeadores respecto a tu plantilla: cuanto menos se conoce al jugador, mayor es el margen de error. Ojeo: A = fichaje recomendado, B = buen refuerzo.</p>
+          <p className="mt-2 text-xs text-muted">Nivel y potencial son estimaciones de tus ojeadores respecto a tu plantilla: cuanto menos se conoce al jugador, mayor es el margen de error. Ojeo: A = fichaje recomendado, B = buen refuerzo, C = rotación, D = no mejora lo que tienes. <Icon name="docCheck" size={11} className="inline text-accent-text" /> = hay informe de tus ojeadores.</p>
         </div>
       )}
     </Card>
