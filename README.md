@@ -24,12 +24,21 @@ En la carpeta del proyecto hay un lanzador por sistema: **`Jugar.bat`** (Windows
 arrancan el juego y abren el navegador en http://localhost:5173. Para salir, cierra la ventana del lanzador.
 El puerto es siempre el 5173 porque las partidas guardadas van ligadas a esa dirección.
 
+### Versión portátil (para pasar el juego sin instalar nada)
+
+`npm run portable` genera `release/Banquillo-portable.zip`: un único **`Banquillo.html`** que se abre con doble clic
+(sin servidor, sin Node.js, sin internet), unas instrucciones (`LEEME.txt`) y, si existe `data/real/world-fc27.json`,
+la base de datos real para importarla. Los Workers van incrustados y compilados como clásicos, porque Chrome no
+arranca Workers de tipo módulo en una página abierta desde un archivo. Las partidas se guardan en el navegador
+de ese ordenador, asociadas a la ubicación del archivo.
+
 ## Scripts
 
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo (Vite). |
 | `npm run build` | Comprobación de tipos + build de producción en `dist/`. |
+| `npm run portable` | Versión portátil en un único HTML: `release/Banquillo-portable.zip`. |
 | `npm test` | Pruebas (Vitest). |
 | `npm run typecheck` | Solo TypeScript. |
 | `npm run generate -- --seed 42 [--nations 8]` | Genera un mundo ficticio en `data/generated/`. |

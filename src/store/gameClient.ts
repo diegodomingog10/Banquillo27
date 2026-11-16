@@ -1,4 +1,5 @@
 import type { GameApi } from '../workers/gameWorker';
+import { createGameWorker } from './workerFactory';
 
 let worker: Worker | null = null;
 let seq = 0;
@@ -6,7 +7,7 @@ const pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Err
 
 function getWorker(): Worker {
   if (!worker) {
-    worker = new Worker(new URL('../workers/gameWorker.ts', import.meta.url), { type: 'module' });
+    worker = createGameWorker();
     worker.onmessage = (ev: MessageEvent<{ id: number; ok: boolean; value?: unknown; error?: string }>) => {
       const p = pending.get(ev.data.id);
       pending.delete(ev.data.id);
